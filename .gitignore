@@ -130,3 +130,7 @@ dmypy.json
 
 #dataset
 sartorius-cell-instance-segmentation/
+/CHECKPOINTS/
+/1120/
+/imgs/
+/kaggle_cell_segmentation/
