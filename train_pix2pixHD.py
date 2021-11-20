@@ -153,7 +153,7 @@ def train(epoch, alpha=None):
             loss_D_reals = p2pHD_loss(pred_real, True)
             pred_fake = D(torch.cat([img0, img_gen], dim=1))
             loss_G_cheat = p2pHD_loss(pred_fake, True)
-            # HE output and loss
+
             loss_G_GAN_feat = feat_loss(pred_fake, pred_real)
 
             loss_D = (loss_D_fakes + loss_D_reals) * .5 * alpha[level]

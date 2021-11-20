@@ -22,20 +22,20 @@ EPS = 1e-8
 parser = argparse.ArgumentParser()
 parser.add_argument('--batch-size', type=int, default=6, help='input batch size')
 parser.add_argument('--no-cuda', action='store_false', help='disables cuda')
-parser.add_argument('--net-struct', default='./structure/pix2pixHD_he-2.json',
+parser.add_argument('--net-struct', default='./structure/pix2pixHD.json',
                     help='The net structure.')
 parser.add_argument('--multiGPU', action='store_true',
                     help='''Enable training on multiple GPUs, uses all that are available.''')
-parser.add_argument('--dataset_loc',
-                    default="data",
-                    help='Folder containing dataset')
-parser.add_argument('--name-list',
-                    default="hr7",
-                    help='The name sequence split by _')
-common_dir = "0712"
-scratch_dir = "test_results"
+parser.add_argument('--dataset-loc',
+                    default="/mnt/data/elec576/project/kaggle_cell_segmentation/sartorius-cell-instance-segmentation/train",
+                    help='Folder containing training dataset')
+parser.add_argument('--csv-loc',
+                    default="/mnt/data/elec576/project/kaggle_cell_segmentation/sartorius-cell-instance-segmentation/train.csv",
+                    help='The csv file of rle masks')
+common_dir = "IMGS"
+scratch_dir = "1120"
 parser.add_argument('--load',
-                    default='CHECKPOINTS',
+                    default='1120/ckpts/CHECKPOINT-960',
                     help='''Load pre-trained networks''')
 parser.add_argument('--img-loc',
                     default='%s/%s/img' % (scratch_dir, common_dir),
@@ -44,22 +44,17 @@ parser.add_argument('--stat-loc',
                     default='%s/%s/stat' % (scratch_dir, common_dir),
                     help='The analysis results are saved in this directory.')
 
-parser.add_argument('--label1', default='phase', help='The input image label.')
-parser.add_argument('--label2', default='tdTomato', help='The ground truth image label.')
 parser.add_argument('--visualize', action='store_true', help='Visualize result.')
 parser.add_argument('--movie', action='store_true', help='Create movie result.')
 parser.add_argument('--num-workers', type=int, default=8, help="The number of cores to load images.")
-parser.add_argument('--crop-size', type=int, default=1008, help='The input size.')
+parser.add_argument('--crop-size', type=int, default=256, help='The input size.')
 parser.add_argument('--g1', default="g1_out", help='The name of the final layer in generator 1.')
 parser.add_argument('--g2', default="g2_out", help='The name of the final layer in generator 2.')
-parser.add_argument('--g1-he', default="g1_heout", help='The name of the HE output layer in generator 1.')
-parser.add_argument('--g2-he', default="g2_heout", help='The name of the HE output layer in generator 2.')
 parser.add_argument('--d-layer', default="feat", help='The name of the final layer in discriminator.')
 parser.add_argument('--n-layers', type=int, default=3, help='The levels of discriminator.')
 opt = parser.parse_args()
 #opt.no_cuda = False
 opt.visualize = True
-opt.name_list = opt.name_list.split("_")
 print(opt)
 if not os.path.exists(opt.img_loc):
     os.makedirs(opt.img_loc)
@@ -69,11 +64,10 @@ if not os.path.exists(opt.stat_loc):
     os.makedirs(opt.stat_loc + "2")
 
 s = json.load(open(opt.net_struct, "rb"))
-G = GAN2D.ConvNet(s["G"], [opt.g1, opt.g2, opt.g1_he, opt.g2_he]).eval()
+G = GAN2D.ConvNet(s["G"], [opt.g1, opt.g2]).eval()
 
 train_loader = DataLoader(
-    dataloaders.MyxoLabelLoaderT(opt.dataset_loc, opt.name_list, opt.label1, opt.label2, seq_len=1,
-                                 mode="test", pre_process=False, crop_size=opt.crop_size),
+    dataloaders.PairedNeurons(opt.dataset_loc, opt.csv_loc, crop_size=opt.crop_size, is_train=True),
     num_workers=opt.num_workers,  # Use this to replace data_prefetcher
     batch_size=opt.batch_size,
     shuffle=False,
@@ -117,86 +111,54 @@ def test(norm_rage=None):
     method = NormalizeTif(norm_range=[-1, 1], norm_method=1)
     with torch.no_grad():
         for batch_idx, tl in enumerate(train_loader):
-            img0, img1, img2, target = tl
+            img0, img1 = tl
             print("\r Processing the %d th batch." % batch_idx, end='')
             batch.batch()
             if opt.no_cuda:
                 img0 = img0.cuda()
-            _, x_fake, _, x_fake_he = G(img0)
+            _, x_fake = G(img0)
             # pkl.dump(img0.cpu().data.numpy(), open("0810/tmp.pkl", 'wb'))
             im0 = img0.cpu().data.numpy()
             im1 = img1.cpu().data.numpy()
             im_gen = x_fake.cpu().data.numpy()
-            im_gen_he = x_fake_he.cpu().data.numpy()
             for i in range(np.size(im1, axis=0)):
                 tdt = im1[i, 0, :, :]
                 gen = im_gen[i, 0, :, :]
-                #MSE = np.square(tdt - gen).mean()
-                #MSE_list.append(MSE)
-                #ssim_item = ssim(tdt, gen)
-                #ssim_list.append(ssim_item)
-                #tdt = np.uint16((tdt - norm_rage[0]) / (norm_rage[1] - norm_rage[0]) * 65535)
-                #tdt = method.forward(tdt)
-                #gen = np.uint16((gen - norm_rage[0]) / (norm_rage[1] - norm_rage[0]) * 65535)
-                #gen = method.forward(gen)
-                #MSE = np.square(tdt - gen).mean()
-                #MSE_he_list.append(MSE)
-                #ssim_item = ssim(tdt, gen)
-                #ssim_he_list.append(ssim_item)
-                phase = im0[i, 0, :, :]
-                gen_he = im_gen_he[i, 0, :, :]
+                neuron = im0[i, 0, :, :]
                 result = {
-                    "phase": phase,
-                    "tdTomato": tdt,
+                    "neuron": neuron,
+                    "mask": tdt,
                     "gen": gen,
-                    "gen_he": gen_he
                 }
-                save_dir = os.path.join(opt.stat_loc, target[0][i].split('_')[0])
-                if not os.path.exists(save_dir):
-                    os.makedirs(save_dir)
-                pkl.dump(result, open(os.path.join(save_dir, "pkg_%s.pkl" % target[0][i].split('_')[1]), "wb"))
+                #save_dir = os.path.join(opt.stat_loc, target[0][i].split('_')[0])
+                #if not os.path.exists(save_dir):
+                #    os.makedirs(save_dir)
+                #pkl.dump(result, open(os.path.join(save_dir, "pkg_%s.pkl" % target[0][i].split('_')[1]), "wb"))
 
                 if opt.visualize:
-                    fig, ax = plt.subplots(2, 3, figsize=[12, 8])
-                    ax[0, 0].imshow(phase, cmap='gray')
-                    ax[0, 0].axis('off')
-                    ax[0, 0].set_title("phase contrast + CLAHE")
-                    ax[0, 0].text(10, 50, "A", fontsize=36, color='white')
+                    fig, ax = plt.subplots(1, 3, figsize=[12, 4])
+                    ax[0].imshow(neuron, cmap='gray')
+                    ax[0].axis('off')
+                    ax[0].set_title("neuron")
+                    ax[0].text(10, 50, "A", fontsize=36, color='white')
 
-                    ax[0, 1].imshow(tdt, cmap='gray')
-                    ax[0, 1].axis('off')
-                    ax[0, 1].set_title("tdTomato + CLAHE")
-                    ax[0, 1].text(10, 50, "B", fontsize=36, color='white')
+                    ax[1].imshow(tdt, cmap='gray')
+                    ax[1].axis('off')
+                    ax[1].set_title("mask")
+                    ax[1].text(10, 50, "B", fontsize=36, color='white')
 
-                    ax[0, 2].imshow(gen, cmap='gray')
-                    ax[0, 2].axis('off')
-                    ax[0, 2].set_title("CLAHE output")
-                    ax[0, 2].text(10, 50, "C", fontsize=36, color='white')
-
-                    ax[1, 0].imshow(gen_he, cmap='gray')
-                    ax[1, 0].axis('off')
-                    ax[1, 0].set_title("HE output")
-                    ax[1, 0].text(10, 50, "D", fontsize=36, color='white')
-                    tdt = np.uint16((tdt - norm_rage[0]) / (norm_rage[1] - norm_rage[0]) * 65535)
-                    tdt = method.forward(tdt)
-                    ax[1, 1].imshow(tdt, cmap='gray')
-                    ax[1, 1].axis('off')
-                    ax[1, 1].set_title("tdTomato + CLAHE + HE")
-                    ax[1, 1].text(10, 50, "E", fontsize=36, color='white')
-                    gen = np.uint16((gen - norm_rage[0]) / (norm_rage[1] - norm_rage[0]) * 65535)
-                    gen = method.forward(gen)
-                    ax[1, 2].imshow(gen, cmap='gray')
-                    ax[1, 2].axis('off')
-                    ax[1, 2].set_title("CLAHE output + HE")
-                    ax[1, 2].text(10, 50, "F", fontsize=36, color='white')
+                    ax[2].imshow(gen, cmap='gray')
+                    ax[2].axis('off')
+                    ax[2].set_title("synthesized")
+                    ax[2].text(10, 50, "C", fontsize=36, color='white')
 
                     fig.tight_layout()
                     scalebar = ScaleBar(1.3e-6, location="upper right")  # 1 pixel = 1.3 microns
                     plt.gca().add_artist(scalebar)
-                    img_dir = os.path.join(opt.img_loc, target[0][i].split('_')[0])
+                    img_dir = os.path.join(opt.img_loc, str(i))
                     if not os.path.exists(img_dir):
                         os.makedirs(img_dir)
-                    plt.savefig(os.path.join(img_dir, "image_%s.png" % target[0][i].split('_')[1]))
+                    plt.savefig(os.path.join(img_dir, "image_%d.png" % i))
                     if opt.movie:
                         img = get_img_from_fig(fig)
                         imgList.append(img)
