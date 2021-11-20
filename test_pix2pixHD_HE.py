@@ -47,7 +47,7 @@ parser.add_argument('--stat-loc',
 parser.add_argument('--visualize', action='store_true', help='Visualize result.')
 parser.add_argument('--movie', action='store_true', help='Create movie result.')
 parser.add_argument('--num-workers', type=int, default=8, help="The number of cores to load images.")
-parser.add_argument('--crop-size', type=int, default=256, help='The input size.')
+parser.add_argument('--crop-size', type=int, default=512, help='The input size.')
 parser.add_argument('--g1', default="g1_out", help='The name of the final layer in generator 1.')
 parser.add_argument('--g2', default="g2_out", help='The name of the final layer in generator 2.')
 parser.add_argument('--d-layer', default="feat", help='The name of the final layer in discriminator.')
@@ -111,7 +111,7 @@ def test(norm_rage=None):
     method = NormalizeTif(norm_range=[-1, 1], norm_method=1)
     with torch.no_grad():
         for batch_idx, tl in enumerate(train_loader):
-            img0, img1 = tl
+            img0, img1, target = tl
             print("\r Processing the %d th batch." % batch_idx, end='')
             batch.batch()
             if opt.no_cuda:
@@ -140,25 +140,25 @@ def test(norm_rage=None):
                     ax[0].imshow(neuron, cmap='gray')
                     ax[0].axis('off')
                     ax[0].set_title("neuron")
-                    ax[0].text(10, 50, "A", fontsize=36, color='white')
+                    #ax[0].text(10, 50, "A", fontsize=36, color='white')
 
                     ax[1].imshow(tdt, cmap='gray')
                     ax[1].axis('off')
                     ax[1].set_title("mask")
-                    ax[1].text(10, 50, "B", fontsize=36, color='white')
+                    #ax[1].text(10, 50, "B", fontsize=36, color='white')
 
                     ax[2].imshow(gen, cmap='gray')
                     ax[2].axis('off')
                     ax[2].set_title("synthesized")
-                    ax[2].text(10, 50, "C", fontsize=36, color='white')
+                    #ax[2].text(10, 50, "C", fontsize=36, color='white')
 
                     fig.tight_layout()
                     scalebar = ScaleBar(1.3e-6, location="upper right")  # 1 pixel = 1.3 microns
                     plt.gca().add_artist(scalebar)
-                    img_dir = os.path.join(opt.img_loc, str(i))
+                    img_dir = opt.img_loc
                     if not os.path.exists(img_dir):
                         os.makedirs(img_dir)
-                    plt.savefig(os.path.join(img_dir, "image_%d.png" % i))
+                    plt.savefig(os.path.join(img_dir, "%s.png" % target[i]))
                     if opt.movie:
                         img = get_img_from_fig(fig)
                         imgList.append(img)

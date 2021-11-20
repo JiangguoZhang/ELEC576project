@@ -127,7 +127,7 @@ def train(epoch, alpha=None):
         # Initialize all values
         batch.batch()
         # Prepare batch
-        img0, img1 = next(train_loader.__iter__())
+        img0, img1, target = next(train_loader.__iter__())
         if opt.no_cuda:
             img0, img1 = img0.cuda(), img1.cuda()
         img0, img1 = Variable(img0, requires_grad=True), Variable(img1, requires_grad=True)
@@ -194,7 +194,7 @@ def test(epoch, norm_range=None):
         norm_range = [opt.norm_min, opt.norm_max]
     MSE_list = []
     with torch.no_grad():
-        img0, img1 = next(train_loader.__iter__())
+        img0, img1, target = next(train_loader.__iter__())
         # print("\r Testing %d th batch." % batch_idx, end='')
         batch.batch()
         if opt.no_cuda:

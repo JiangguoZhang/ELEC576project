@@ -56,4 +56,4 @@ class PairedNeurons(datasets.ImageFolder):
         if self.target_transform is not None:
             target = self.target_transform(target)
 
-        return img0, img1
+        return img0, img1, target
