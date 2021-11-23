@@ -50,8 +50,8 @@ class PairedNeurons(datasets.ImageFolder):
             img0 = np.rot90(img0, k=r_angle)
             img1 = np.rot90(img1, k=r_angle)
 
-        img0 = torch.from_numpy(img0[np.newaxis, :, :].copy())
-        img1 = torch.from_numpy(img1[np.newaxis, :, :].copy())
+        #img0 = torch.from_numpy(img0[np.newaxis, :, :].copy())
+        #img1 = torch.from_numpy(img1[np.newaxis, :, :].copy())
 
         if self.target_transform is not None:
             target = self.target_transform(target)
