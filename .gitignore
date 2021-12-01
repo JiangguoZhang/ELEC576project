@@ -134,3 +134,10 @@ sartorius-cell-instance-segmentation/
 /1120/
 /imgs/
 /kaggle_cell_segmentation/
+
+# UNET
+UNET/dataset_dsb2018_256/
+UNET/result/log
+UNET/result/plot
+UNET/saved_model/*.pth
+UNET/saved_predict/*/*
