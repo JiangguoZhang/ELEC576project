@@ -21,6 +21,12 @@ from torchvision.transforms import transforms
 from plot import loss_plot
 from plot import metrics_plot
 from torchvision.models import vgg16
+
+# Yhead dataset
+import sys
+sys.path.append('..')
+from dataloaders.PairedNeurons import PairedNeurons
+
 def getArgs():
     parse = argparse.ArgumentParser()
     parse.add_argument('--deepsupervision', default=0)
@@ -30,7 +36,7 @@ def getArgs():
                        help='UNet/resnet34_unet/unet++/myChannelUnet/Attention_UNet/segnet/r2unet/fcn32s/fcn8s')
     parse.add_argument("--batch_size", type=int, default=1)
     parse.add_argument('--dataset', default='dsb2018Cell',  # dsb2018_256
-                       help='dataset name:liver/esophagus/dsb2018Cell/corneal/driveEye/isbiCell/kaggleLung')
+                       help='dataset name:liver/esophagus/dsb2018Cell/corneal/driveEye/isbiCell/kaggleLung/yhead')
     # parse.add_argument("--ckp", type=str, help="the path of model weight file")
     parse.add_argument("--log_dir", default='result/log', help="log dir")
     parse.add_argument("--threshold",type=float,default=None)
@@ -77,6 +83,20 @@ def getModel(args):
 
 def getDataset(args):
     train_dataloaders, val_dataloaders ,test_dataloaders= None,None,None
+    if args.dataset == 'yhead':
+        train_dataset = PairedNeurons(
+            '/home/derek/Disk1/cell_instance_segment/train',
+            '/home/derek/Disk1/cell_instance_segment/train.csv',
+            crop_size=256, is_train=True
+        )
+        train_dataloaders = DataLoader(train_dataset, batch_size=args.batch_size)
+        val_dataset = PairedNeurons(
+            '/home/derek/Disk1/cell_instance_segment/train',
+            '/home/derek/Disk1/cell_instance_segment/train.csv',
+            crop_size=256, is_train=False
+        )
+        val_dataloaders = DataLoader(val_dataset, batch_size=1)
+        test_dataloaders = val_dataloaders
     if args.dataset =='liver':  #E:\代码\new\u_net_liver-master\data\liver\val
         train_dataset = LiverDataset(r"train", transform=x_transforms, target_transform=y_transforms)
         train_dataloaders = DataLoader(train_dataset, batch_size=args.batch_size)
@@ -134,17 +154,21 @@ def val(model,best_iou,val_dataloaders):
         dice_total = 0
         num = len(val_dataloaders)  #验证集图片的总数
         #print(num)
-        for x, _,pic,mask in val_dataloaders:
+
+        # for x, _,pic,mask in val_dataloaders:
+        for x,mask,_ in val_dataloaders:
             x = x.to(device)
             y = model(x)
             if args.deepsupervision:
                 img_y = torch.squeeze(y[-1]).cpu().numpy()
+                mask = mask.squeeze().cpu().numpy()
             else:
                 img_y = torch.squeeze(y).cpu().numpy()  #输入损失函数之前要把预测图变成numpy格式，且为了跟训练图对应，要额外加多一维表示batchsize
+                mask = mask.squeeze().cpu().numpy()
 
-            hd_total += get_hd(mask[0], img_y)
-            miou_total += get_iou(mask[0],img_y)  #获取当前预测图的miou，并加到总miou中
-            dice_total += get_dice(mask[0],img_y)
+            hd_total += get_hd(mask, img_y)
+            miou_total += get_iou(mask,img_y)  #获取当前预测图的miou，并加到总miou中
+            dice_total += get_dice(mask,img_y)
             if i < num:i+=1   #处理验证集下一张图
         aver_iou = miou_total / num
         aver_hd = hd_total / num
@@ -176,7 +200,8 @@ def train(model, criterion, optimizer, train_dataloader,val_dataloader, args):
         dt_size = len(train_dataloader.dataset)
         epoch_loss = 0
         step = 0
-        for x, y,_,mask in train_dataloader:
+        for x, y,_ in train_dataloader:
+        # for x, y,_,mask in train_dataloader:
             step += 1
             inputs = x.to(device)
             labels = y.to(device)
@@ -234,40 +259,51 @@ def test(val_dataloaders,save_predict=False):
         hd_total = 0
         dice_total = 0
         num = len(val_dataloaders)  #验证集图片的总数
-        for pic,_,pic_path,mask_path in val_dataloaders:
+
+        # for pic,_,pic_path,mask_path in val_dataloaders:
+        for pic,mask,_ in val_dataloaders:
             pic = pic.to(device)
             predict = model(pic)
             if args.deepsupervision:
                 predict = torch.squeeze(predict[-1]).cpu().numpy()
+                mask = mask.squeeze().cpu().numpy()
             else:
                 predict = torch.squeeze(predict).cpu().numpy()  #输入损失函数之前要把预测图变成numpy格式，且为了跟训练图对应，要额外加多一维表示batchsize
+                mask = mask.squeeze().cpu().numpy()
             #img_y = torch.squeeze(y).cpu().numpy()  #输入损失函数之前要把预测图变成numpy格式，且为了跟训练图对应，要额外加多一维表示batchsize
 
-            iou = get_iou(mask_path[0],predict)
+            iou = get_iou(mask,predict)
             miou_total += iou  #获取当前预测图的miou，并加到总miou中
-            hd_total += get_hd(mask_path[0], predict)
-            dice = get_dice(mask_path[0],predict)
+            hd_total += get_hd(mask, predict)
+            dice = get_dice(mask,predict)
             dice_total += dice
 
             fig = plt.figure()
             ax1 = fig.add_subplot(1, 3, 1)
             ax1.set_title('input')
-            plt.imshow(Image.open(pic_path[0]))
+            plt.imshow(pic.squeeze().detach().cpu().numpy())
+            # plt.imshow(Image.open(pic_path[0]))
             #print(pic_path[0])
             ax2 = fig.add_subplot(1, 3, 2)
             ax2.set_title('predict')
             plt.imshow(predict,cmap='Greys_r')
             ax3 = fig.add_subplot(1, 3, 3)
             ax3.set_title('mask')
-            plt.imshow(Image.open(mask_path[0]), cmap='Greys_r')
+            # plt.imshow(Image.open(mask_path[0]), cmap='Greys_r')
+            plt.imshow(mask, cmap='Greys_r')
             #print(mask_path[0])
+
+            i=0
             if save_predict == True:
                 if args.dataset == 'driveEye':
-                    saved_predict = dir + '/' + mask_path[0].split('/')[-1]
-                    saved_predict = '.'+saved_predict.split('.')[1] + '.tif'
-                    plt.savefig(saved_predict)
+                    pass
+                    # saved_predict = dir + '/' + mask_path[0].split('/')[-1]
+                    # saved_predict = '.'+saved_predict.split('.')[1] + '.tif'
+                    # plt.savefig(saved_predict)
                 else:
-                    plt.savefig(dir +'/'+ mask_path[0].split('/')[-1])
+                    # plt.savefig(dir +'/'+ mask_path[0].split('/')[-1])
+                    plt.savefig(dir + f'/{i}.png')
+                    i += 1
             #plt.pause(0.01)
             print('iou={},dice={}'.format(iou,dice))
             if i < num:i+=1   #处理验证集下一张图

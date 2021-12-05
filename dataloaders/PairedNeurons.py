@@ -139,7 +139,10 @@ class PairedNeurons(datasets.ImageFolder):
         img1 = np.zeros((520, 704), dtype=bool)
         for label in labels:
             img1 = np.bitwise_or(img1, self.rle_decode(label, (520, 704)))
-        img1 = np.array(img1, dtype=np.float32) * 2 - 1
+        # no need to convert to [-1,1], just remain [0, 1]
+        # img1 = np.array(img1, dtype=np.float32) * 2 - 1
+        img1 = np.array(img1, dtype=np.float32)
+        
         img0 = ImageOps.grayscale(img0)
         img0 = np.array(img0, dtype=np.float32) / 255 * 2 - 1
 
@@ -156,9 +159,16 @@ class PairedNeurons(datasets.ImageFolder):
                 img1 = np.fliplr(img1)
             img0 = np.rot90(img0, k=r_angle)
             img1 = np.rot90(img1, k=r_angle)
+        else:
+            img_shape = np.shape(img0)
+            x = random.randint(0, img_shape[0] - self.crop_size)
+            y = random.randint(0, img_shape[1] - self.crop_size)
+            img0 = img0[x:(self.crop_size + x), y:(self.crop_size + y)]
+            img1 = img1[x:(self.crop_size + x), y:(self.crop_size + y)]
 
-        #img0 = torch.from_numpy(img0[np.newaxis, :, :].copy())
-        #img1 = torch.from_numpy(img1[np.newaxis, :, :].copy())
+        img0 = torch.from_numpy(img0[np.newaxis, :, :].copy())
+        img0 = img0.repeat(3,1,1) # convert to 3 channels, for unet
+        img1 = torch.from_numpy(img1[np.newaxis, :, :].copy())
 
         if self.target_transform is not None:
             target = self.target_transform(target)

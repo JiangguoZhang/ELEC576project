@@ -9,8 +9,6 @@ import cv2
 from glob import glob
 import imageio
 
-
-
 class LiverDataset(data.Dataset):
     def __init__(self, state, transform=None, target_transform=None):
         self.state = state
@@ -377,3 +375,4 @@ class LungKaggleDataset(data.Dataset):
 
     def __len__(self):
         return len(self.pics)
+

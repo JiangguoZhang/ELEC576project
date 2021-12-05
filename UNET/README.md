@@ -1,4 +1,4 @@
-python main.py --action 'train&test' --arch UNet --epoch 21 --batch_size 21
+python main.py --action 'train&test' --arch UNet --epoch 21 --batch_size 21 --dataset yhead
 
 # UNET-ZOO
 including unet,unet++,attention-unet,r2unet,cenet,segnet ,fcn.

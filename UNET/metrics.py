@@ -35,12 +35,13 @@ class IOUMetric:
         return acc, acc_cls, iu, mean_iu, fwavacc
 
 
-def get_iou(mask_name,predict):
-    image_mask = cv2.imread(mask_name,0)
-    if np.all(image_mask == None):
-        image_mask = imageio.mimread(mask_name)
-        image_mask = np.array(image_mask)[0]
-        image_mask = cv2.resize(image_mask,(576,576))
+def get_iou(mask,predict):
+    """mask: [0,1] numpy"""
+    # image_mask = cv2.imread(mask_name,0)
+    # if np.all(image_mask == None):
+    #     image_mask = imageio.mimread(mask_name)
+    #     image_mask = np.array(image_mask)[0]
+    #     image_mask = cv2.resize(image_mask,(576,576))
     #image_mask = mask
     # print(image.shape)
     height = predict.shape[0]
@@ -55,17 +56,18 @@ def get_iou(mask_name,predict):
                     predict[row, col] = 1
                 if predict[row, col] == 0 or predict[row, col] == 1:
                     o += 1
-    height_mask = image_mask.shape[0]
-    weight_mask = image_mask.shape[1]
-    for row in range(height_mask):
-            for col in range(weight_mask):
-                if image_mask[row, col] < 125:   #由于mask图是黑白的灰度图，所以少于125的可以看作是黑色
-                    image_mask[row, col] = 0
-                else:
-                    image_mask[row, col] = 1
-                if image_mask[row, col] == 0 or image_mask[row, col] == 1:
-                    o += 1
+    # height_mask = mask.shape[0]
+    # weight_mask = mask.shape[1]
+    # for row in range(height_mask):
+    #         for col in range(weight_mask):
+    #             if image_mask[row, col] < 125:   #由于mask图是黑白的灰度图，所以少于125的可以看作是黑色
+    #                 image_mask[row, col] = 0
+    #             else:
+    #                 image_mask[row, col] = 1
+    #             if image_mask[row, col] == 0 or image_mask[row, col] == 1:
+    #                 o += 1
     predict = predict.astype(np.int16)
+    image_mask = mask.astype(np.int16)
 
     interArea = np.multiply(predict, image_mask)
     tem = predict + image_mask
@@ -77,16 +79,19 @@ def get_iou(mask_name,predict):
     # Iou = IOUMetric(2)  #2表示类别，肝脏类+背景类
     # Iou.add_batch(predict, image_mask)
     # a, b, c, d, e= Iou.evaluate()
-    print('%s:iou=%f' % (mask_name,iou_tem))
+    # print('%s:iou=%f' % (mask_name, iou_tem))
+    print('iou=%f' % iou_tem)
 
     return iou_tem
 
-def get_dice(mask_name,predict):
-    image_mask = cv2.imread(mask_name, 0)
-    if np.all(image_mask == None):
-        image_mask = imageio.mimread(mask_name)
-        image_mask = np.array(image_mask)[0]
-        image_mask = cv2.resize(image_mask,(576,576))
+def get_dice(mask,predict):
+    """mask: [0,1], numpy"""
+    # image_mask = cv2.imread(mask_name, 0)
+    # if np.all(image_mask == None):
+    #     image_mask = imageio.mimread(mask_name)
+    #     image_mask = np.array(image_mask)[0]
+    #     image_mask = cv2.resize(image_mask,(576,576))
+    
     height = predict.shape[0]
     weight = predict.shape[1]
     o = 0
@@ -98,30 +103,36 @@ def get_dice(mask_name,predict):
                 predict[row, col] = 1
             if predict[row, col] == 0 or predict[row, col] == 1:
                 o += 1
-    height_mask = image_mask.shape[0]
-    weight_mask = image_mask.shape[1]
-    for row in range(height_mask):
-        for col in range(weight_mask):
-            if image_mask[row, col] < 125:  # 由于mask图是黑白的灰度图，所以少于125的可以看作是黑色
-                image_mask[row, col] = 0
-            else:
-                image_mask[row, col] = 1
-            if image_mask[row, col] == 0 or image_mask[row, col] == 1:
-                o += 1
+    
+    # height_mask = image_mask.shape[0]
+    # weight_mask = image_mask.shape[1]
+    # for row in range(height_mask):
+    #     for col in range(weight_mask):
+    #         if image_mask[row, col] < 125:  # 由于mask图是黑白的灰度图，所以少于125的可以看作是黑色
+    #             image_mask[row, col] = 0
+    #         else:
+    #             image_mask[row, col] = 1
+    #         if image_mask[row, col] == 0 or image_mask[row, col] == 1:
+    #             o += 1
+    
     predict = predict.astype(np.int16)
+    image_mask = mask.astype(np.int16)
+
     intersection = (predict*image_mask).sum()
     dice = (2. *intersection) /(predict.sum()+image_mask.sum())
     return dice
 
-def get_hd(mask_name,predict):
-    image_mask = cv2.imread(mask_name, 0)
+def get_hd(mask,predict):
+    """mask: [0,1]"""
+    # image_mask = cv2.imread(mask_name, 0)
     # print(mask_name)
     # print(image_mask)
-    if np.all(image_mask == None):
-        image_mask = imageio.mimread(mask_name)
-        image_mask = np.array(image_mask)[0]
-        image_mask = cv2.resize(image_mask,(576,576))
+    # if np.all(image_mask == None):
+    #     image_mask = imageio.mimread(mask_name)
+    #     image_mask = np.array(image_mask)[0]
+    #     image_mask = cv2.resize(image_mask,(576,576))
     #image_mask = mask
+
     height = predict.shape[0]
     weight = predict.shape[1]
     o = 0
@@ -133,18 +144,20 @@ def get_hd(mask_name,predict):
                 predict[row, col] = 1
             if predict[row, col] == 0 or predict[row, col] == 1:
                 o += 1
-    height_mask = image_mask.shape[0]
-    weight_mask = image_mask.shape[1]
-    for row in range(height_mask):
-        for col in range(weight_mask):
-            if image_mask[row, col] < 125:  # 由于mask图是黑白的灰度图，所以少于125的可以看作是黑色
-                image_mask[row, col] = 0
-            else:
-                image_mask[row, col] = 1
-            if image_mask[row, col] == 0 or image_mask[row, col] == 1:
-                o += 1
-    hd1 = directed_hausdorff(image_mask, predict)[0]
-    hd2 = directed_hausdorff(predict, image_mask)[0]
+    
+    # height_mask = image_mask.shape[0]
+    # weight_mask = image_mask.shape[1]
+    # for row in range(height_mask):
+    #     for col in range(weight_mask):
+    #         if image_mask[row, col] < 125:  # 由于mask图是黑白的灰度图，所以少于125的可以看作是黑色
+    #             image_mask[row, col] = 0
+    #         else:
+    #             image_mask[row, col] = 1
+    #         if image_mask[row, col] == 0 or image_mask[row, col] == 1:
+    #             o += 1
+
+    hd1 = directed_hausdorff(mask, predict)[0]
+    hd2 = directed_hausdorff(predict, mask)[0]
     res = None
     if hd1>hd2 or hd1 == hd2:
         res=hd1
