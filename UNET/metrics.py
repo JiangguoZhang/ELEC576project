@@ -75,7 +75,8 @@ def get_iou(mask,predict):
     inter = np.sum(interArea)
     union = np.sum(unionArea)
     iou_tem = inter / union
-
+    if np.isnan(iou_tem):
+        iou_tem = 0.0
     # Iou = IOUMetric(2)  #2表示类别，肝脏类+背景类
     # Iou.add_batch(predict, image_mask)
     # a, b, c, d, e= Iou.evaluate()

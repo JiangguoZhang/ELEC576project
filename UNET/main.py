@@ -93,7 +93,7 @@ def getDataset(args):
         val_dataset = PairedNeurons(
             '/home/derek/Disk1/cell_instance_segment/train',
             '/home/derek/Disk1/cell_instance_segment/train.csv',
-            crop_size=256, is_train=False
+            crop_size=480, is_train=False
         )
         val_dataloaders = DataLoader(val_dataset, batch_size=1)
         test_dataloaders = val_dataloaders
@@ -253,6 +253,7 @@ def test(val_dataloaders,save_predict=False):
     model.eval()
 
     #plt.ion() #开启动态模式
+    pic_file_num = 0
     with torch.no_grad():
         i=0   #验证集中第i张图
         miou_total = 0
@@ -281,6 +282,7 @@ def test(val_dataloaders,save_predict=False):
             fig = plt.figure()
             ax1 = fig.add_subplot(1, 3, 1)
             ax1.set_title('input')
+            pic = pic[0,0,:,:]
             plt.imshow(pic.squeeze().detach().cpu().numpy())
             # plt.imshow(Image.open(pic_path[0]))
             #print(pic_path[0])
@@ -293,7 +295,6 @@ def test(val_dataloaders,save_predict=False):
             plt.imshow(mask, cmap='Greys_r')
             #print(mask_path[0])
 
-            i=0
             if save_predict == True:
                 if args.dataset == 'driveEye':
                     pass
@@ -302,8 +303,8 @@ def test(val_dataloaders,save_predict=False):
                     # plt.savefig(saved_predict)
                 else:
                     # plt.savefig(dir +'/'+ mask_path[0].split('/')[-1])
-                    plt.savefig(dir + f'/{i}.png')
-                    i += 1
+                    plt.savefig(dir + f'/{pic_file_num}.png')
+                    pic_file_num += 1
             #plt.pause(0.01)
             print('iou={},dice={}'.format(iou,dice))
             if i < num:i+=1   #处理验证集下一张图
