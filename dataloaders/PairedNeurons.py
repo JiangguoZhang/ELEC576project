@@ -66,10 +66,11 @@ class PairedNeurons(datasets.ImageFolder):
             [0, 0, 1]
         ])
 
-        rotated_coords = np.array(rotated_coords) + np.array([new_w, new_h]) // 2
+        rotated_coords = np.array(rotated_coords) + np.array([new_w, new_h]) // 2   # Change to new coordinates
         right_idx, top_idx = np.argmax(rotated_coords, axis=0)
         left_idx, bot_idx = np.argmin(rotated_coords, axis=0)
-        coords_list = [rotated_coords[left_idx], rotated_coords[bot_idx], rotated_coords[right_idx], rotated_coords[top_idx]]
+        coords_list = [rotated_coords[left_idx], rotated_coords[bot_idx],   # Get the vertices in anticlockwise order
+                       rotated_coords[right_idx], rotated_coords[top_idx]]  # from the left-most vertex
 
         # Compute the transform for the combined rotation and translation
         affine_mat = (np.matrix(trans_mat) * np.matrix(rot_mat))[0:2, :]
@@ -82,7 +83,7 @@ class PairedNeurons(datasets.ImageFolder):
             flags=cv2.INTER_LINEAR
         ) for image_transform in images]
 
-        whole_size = results[0].shape
+        whole_size = results[0].shape   # The new image size
 
         while True:
             x_coord = np.random.randint(whole_size[0] - self.crop_x)
@@ -102,10 +103,15 @@ class PairedNeurons(datasets.ImageFolder):
 
     @staticmethod
     def is_point_in_rect(coord_list, points):
+        """
+        Check if all points of a small rectangle in the large rectangle coordinate list
+        :param coord_list: Large rectangle coordinate list ordered counterclockwise from the left most
+        :param points: Vertices of the small rectangle ordered counterclockwise from the bottom left
+        :return: Is small rectangle in large rectangle
+        """
         cross_value = [np.cross(coord_list[(i + 1) % 4]-coord_list[i], points[i]-coord_list[i]) for i in range(4)]
         cross_value = np.array(cross_value)
         if np.all(cross_value > 0):
-            print(points)
             return True
         else:
             return False
