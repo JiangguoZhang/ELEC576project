@@ -66,6 +66,11 @@ class PairedNeurons(datasets.ImageFolder):
             [0, 0, 1]
         ])
 
+        rotated_coords = np.array(rotated_coords) + np.array([new_w, new_h]) // 2
+        right_idx, top_idx = np.argmax(rotated_coords, axis=0)
+        left_idx, bot_idx = np.argmin(rotated_coords, axis=0)
+        coords_list = [rotated_coords[left_idx], rotated_coords[bot_idx], rotated_coords[right_idx], rotated_coords[top_idx]]
+
         # Compute the transform for the combined rotation and translation
         affine_mat = (np.matrix(trans_mat) * np.matrix(rot_mat))[0:2, :]
 
@@ -78,31 +83,29 @@ class PairedNeurons(datasets.ImageFolder):
         ) for image_transform in images]
 
         whole_size = results[0].shape
-        x_range = int((whole_size[0] - self.crop_x) / 2)
-        y_range = int((whole_size[1] - self.crop_y) / 2)
 
         while True:
-            x_coord = np.random.randint(-x_range, x_range)
-            y_coord = np.random.randint(-y_range, y_range)
-            points = np.array([[x_coord - self.crop_x / 2, y_coord - self.crop_y / 2],
-                              [x_coord - self.crop_x / 2, y_coord + self.crop_y / 2],
-                              [x_coord + self.crop_x / 2, y_coord + self.crop_y / 2],
-                              [x_coord + self.crop_x / 2, y_coord - self.crop_y / 2]])
-            are_points_in_rect = np.array([self.is_point_in_rect(rotated_coords, points[i, :]) for i in range(4)])
-            if are_points_in_rect.all():
+            x_coord = np.random.randint(whole_size[0] - self.crop_x)
+            y_coord = np.random.randint(whole_size[1] - self.crop_y)
+            points = np.array([[x_coord, y_coord],
+                              [x_coord + self.crop_x, y_coord],
+                              [x_coord + self.crop_x, y_coord + self.crop_y],
+                              [x_coord, y_coord + self.crop_y]])
+            are_points_in_rect = self.is_point_in_rect(coords_list, points)
+            if are_points_in_rect:
                 break
 
-        x_crop = x_range + x_coord
-        y_crop = y_range + y_coord
+        y_coord = whole_size[1] - y_coord - self.crop_y  # The y axis is flipped
 
-        return [result[x_crop:x_crop+self.crop_x, y_crop:y_crop+self.crop_y] for result in results]
+        return [result[x_coord:x_coord+self.crop_x, y_coord:y_coord+self.crop_y] for result in results]
 
 
     @staticmethod
-    def is_point_in_rect(coord_list, point):
-        cross_value = [np.cross(coord_list[(i + 1) % 4]-coord_list[i], point-coord_list[i]) for i in range(4)]
+    def is_point_in_rect(coord_list, points):
+        cross_value = [np.cross(coord_list[(i + 1) % 4]-coord_list[i], points[i]-coord_list[i]) for i in range(4)]
         cross_value = np.array(cross_value)
-        if np.all(cross_value >= 0) or np.all(cross_value <= 0):
+        if np.all(cross_value > 0):
+            print(points)
             return True
         else:
             return False
@@ -167,7 +170,7 @@ class PairedNeurons(datasets.ImageFolder):
             # Process images in numpy format
             img0 = np.array(img0, dtype=np.float32) / 255 * 2 - 1
             img1 = np.array(img1 * 2 - 1, dtype=np.float32)
-            img0, img1 = self.rotate_images([img0, img1], angle=np.random.random(1)*360)
+            img0, img1 = self.rotate_images([img0, img1], angle=np.random.random(1)*180 - 90)
             is_flip = random.random() < 0.5  # flip
             if is_flip:
                 img0 = np.fliplr(img0)
