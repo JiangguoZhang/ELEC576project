@@ -1,3 +1,4 @@
+# How to Run
 python main.py --action 'train&test' --arch UNet --epoch 21 --batch_size 21 --dataset yhead
 
 # UNET-ZOO
