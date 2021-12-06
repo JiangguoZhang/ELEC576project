@@ -48,7 +48,8 @@ parser.add_argument('--norm-min', type=int, default=-1, help="The normalized min
 parser.add_argument('--norm-max', type=int, default=1, help="The normalized maximum")
 
 parser.add_argument('--num-workers', type=int, default=3, help="The number of cores to load images.")
-parser.add_argument('--crop-size', type=int, default=256, help='The input size.')
+parser.add_argument('--crop-x', type=int, default=256, help='The height of input image.')
+parser.add_argument('--crop-y', type=int, default=256, help='The width of input image.')
 parser.add_argument('--pretrain-epoch', type=int, default=100,
                     help="The epochs that the model is pretrained with G1 output and G2 output.")
 parser.add_argument('--g1', default="g1_out", help='The name of the final layer in generator 1.')
@@ -73,7 +74,7 @@ json.dump(s, open(os.path.join(opt.logdir, "model.json"), "w"))
 
 
 train_loader = DataLoader(
-    dataloaders.PairedNeurons(opt.dataset_loc, opt.csv_loc, crop_size=opt.crop_size, is_train=True),
+    dataloaders.PairedNeurons(opt.dataset_loc, opt.csv_loc, crop_x=opt.crop_x, crop_y=opt.crop_y, is_train=True),
     num_workers=opt.num_workers,  # Use this to replace data_prefetcher
     batch_size=opt.batch_size,
     shuffle=True,

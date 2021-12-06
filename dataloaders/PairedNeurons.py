@@ -3,16 +3,17 @@ import random
 import numpy as np
 import pandas as pd
 import torch
-from PIL import ImageOps
-from torchvision import datasets
+from PIL import ImageOps, Image
+from torchvision import datasets, transforms
 import cv2
 import math
 import matplotlib.pyplot as plt
 
 class PairedNeurons(datasets.ImageFolder):
-    def __init__(self, root, rle_dir, crop_size=256, is_train=True):
+    def __init__(self, root, rle_dir, crop_x=256, crop_y=256, is_train=True):
         self.masks = pd.read_csv(rle_dir)
-        self.crop_size = crop_size
+        self.crop_x = crop_x
+        self.crop_y = crop_y
         self.is_train = is_train
         super().__init__(root)
 
@@ -27,9 +28,9 @@ class PairedNeurons(datasets.ImageFolder):
             img[start: end] = color
         return img.reshape(shape)
 
-    @staticmethod
-    def rotate_image(image, angle):
+    def rotate_images(self, images, angle):
         # Get the image size
+        image = images[0]
         image_size = (image.shape[1], image.shape[0])
         image_center = tuple(np.array(image_size) / 2)
 
@@ -46,25 +47,14 @@ class PairedNeurons(datasets.ImageFolder):
 
         # Obtain the rotated coordinates of the image corners
         rotated_coords = [
+            (np.array([-image_w2, -image_h2]) * rot_mat_notranslate).A[0],
             (np.array([-image_w2, image_h2]) * rot_mat_notranslate).A[0],
             (np.array([image_w2, image_h2]) * rot_mat_notranslate).A[0],
-            (np.array([-image_w2, -image_h2]) * rot_mat_notranslate).A[0],
             (np.array([image_w2, -image_h2]) * rot_mat_notranslate).A[0]
         ]
 
-        # Find the size of the new image
-        x_coords = [pt[0] for pt in rotated_coords]
-        x_pos = [x for x in x_coords if x > 0]
-        x_neg = [x for x in x_coords if x < 0]
-
-        y_coords = [pt[1] for pt in rotated_coords]
-        y_pos = [y for y in y_coords if y > 0]
-        y_neg = [y for y in y_coords if y < 0]
-
-        right_bound = max(x_pos)
-        left_bound = min(x_neg)
-        top_bound = max(y_pos)
-        bot_bound = min(y_neg)
+        right_bound, top_bound = np.max(rotated_coords, axis=0)
+        left_bound, bot_bound = np.min(rotated_coords, axis=0)
 
         new_w = int(abs(right_bound - left_bound))
         new_h = int(abs(top_bound - bot_bound))
@@ -76,18 +66,46 @@ class PairedNeurons(datasets.ImageFolder):
             [0, 0, 1]
         ])
 
-        # Compute the tranform for the combined rotation and translation
+        # Compute the transform for the combined rotation and translation
         affine_mat = (np.matrix(trans_mat) * np.matrix(rot_mat))[0:2, :]
 
         # Apply the transform
-        result = cv2.warpAffine(
-            image,
+        results = [cv2.warpAffine(
+            image_transform,
             affine_mat,
             (new_w, new_h),
             flags=cv2.INTER_LINEAR
-        )
+        ) for image_transform in images]
 
-        return result
+        whole_size = results[0].shape
+        x_range = int((whole_size[0] - self.crop_x) / 2)
+        y_range = int((whole_size[1] - self.crop_y) / 2)
+
+        while True:
+            x_coord = np.random.randint(-x_range, x_range)
+            y_coord = np.random.randint(-y_range, y_range)
+            points = np.array([[x_coord - self.crop_x / 2, y_coord - self.crop_y / 2],
+                              [x_coord - self.crop_x / 2, y_coord + self.crop_y / 2],
+                              [x_coord + self.crop_x / 2, y_coord + self.crop_y / 2],
+                              [x_coord + self.crop_x / 2, y_coord - self.crop_y / 2]])
+            are_points_in_rect = np.array([self.is_point_in_rect(rotated_coords, points[i, :]) for i in range(4)])
+            if are_points_in_rect.all():
+                break
+
+        x_crop = x_range + x_coord
+        y_crop = y_range + y_coord
+
+        return [result[x_crop:x_crop+self.crop_x, y_crop:y_crop+self.crop_y] for result in results]
+
+
+    @staticmethod
+    def is_point_in_rect(coord_list, point):
+        cross_value = [np.cross(coord_list[(i + 1) % 4]-coord_list[i], point-coord_list[i]) for i in range(4)]
+        cross_value = np.array(cross_value)
+        if np.all(cross_value >= 0) or np.all(cross_value <= 0):
+            return True
+        else:
+            return False
 
     @staticmethod
     def largest_rotated_rect(w, h, angle):
@@ -113,6 +131,8 @@ class PairedNeurons(datasets.ImageFolder):
             bb_h - 2 * y
         )
 
+
+
     @staticmethod
     def crop_around_center(image, width, height):
 
@@ -136,29 +156,45 @@ class PairedNeurons(datasets.ImageFolder):
         img0, target = super().__getitem__(index)
         target = self.classes[index]
         labels = self.masks[self.masks["id"] == target]["annotation"].tolist()
-        img1 = np.zeros((520, 704), dtype=bool)
-        for label in labels:
-            img1 = np.bitwise_or(img1, self.rle_decode(label, (520, 704)))
-        img1 = np.array(img1, dtype=np.float32) * 2 - 1
         img0 = ImageOps.grayscale(img0)
-        img0 = np.array(img0, dtype=np.float32) / 255 * 2 - 1
+
+        img_shape = [img0.size[-1], img0.size[-2]]
+        img1 = np.zeros(img_shape, dtype=bool)
+        for label in labels:
+            img1 = np.bitwise_or(img1, self.rle_decode(label, img_shape))
 
         if self.is_train:
-            img_shape = np.shape(img0)
-            x = random.randint(0, img_shape[0] - self.crop_size)
-            y = random.randint(0, img_shape[1] - self.crop_size)
-            is_flip = random.random() < 0.5  # flop
-            r_angle = np.random.randint(0, 4)  # rotate
-            img0 = img0[x:(self.crop_size + x), y:(self.crop_size + y)]
-            img1 = img1[x:(self.crop_size + x), y:(self.crop_size + y)]
+            # Process images in numpy format
+            img0 = np.array(img0, dtype=np.float32) / 255 * 2 - 1
+            img1 = np.array(img1 * 2 - 1, dtype=np.float32)
+            img0, img1 = self.rotate_images([img0, img1], angle=np.random.random(1)*360)
+            is_flip = random.random() < 0.5  # flip
             if is_flip:
                 img0 = np.fliplr(img0)
                 img1 = np.fliplr(img1)
-            img0 = np.rot90(img0, k=r_angle)
-            img1 = np.rot90(img1, k=r_angle)
+        else:
+            # Process images in PIL format
+            img1 = Image.fromarray(np.uint8(img1 * 255))
+            if self.crop_x > img_shape[0]:
+                pad_x = (self.crop_x - img_shape[0]) // 2
+            else:
+                pad_x = 0
+            if self.crop_y > img_shape[1]:
+                pad_y = (self.crop_y - img_shape[1]) // 2
+            else:
+                pad_y = 0
+            padding = transforms.Pad(padding=(pad_y, pad_x), padding_mode='reflect')
+            img0 = padding(img0)
+            img1 = padding(img1)
+            img0 = np.array(img0) / 255 * 2 - 1
+            img1 = np.array(img1) / 255 * 2 - 1
 
         #img0 = torch.from_numpy(img0[np.newaxis, :, :].copy())
         #img1 = torch.from_numpy(img1[np.newaxis, :, :].copy())
+
+        if self.transform is not None:
+            img0 = self.transform(img0)
+            img1 = self.transform(img1)
 
         if self.target_transform is not None:
             target = self.target_transform(target)
