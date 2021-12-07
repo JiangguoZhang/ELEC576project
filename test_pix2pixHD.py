@@ -46,7 +46,11 @@ parser.add_argument('--stat-loc',
 
 parser.add_argument('--visualize', action='store_true', help='Visualize result.')
 parser.add_argument('--movie', action='store_true', help='Create movie result.')
-parser.add_argument('--num-workers', type=int, default=8, help="The number of cores to load images.")
+parser.add_argument('--norm-min', type=int, default=-1, help="The normalized minimum")
+parser.add_argument('--norm-max', type=int, default=1, help="The normalized maximum")
+parser.add_argument('--num-workers', type=int, default=3, help="The number of cores to load images.")
+parser.add_argument('--crop-x', type=int, default=256, help='The height of input image.')
+parser.add_argument('--crop-y', type=int, default=256, help='The width of input image.')
 parser.add_argument('--crop-size', type=int, default=512, help='The input size.')
 parser.add_argument('--g1', default="g1_out", help='The name of the final layer in generator 1.')
 parser.add_argument('--g2', default="g2_out", help='The name of the final layer in generator 2.')
@@ -67,7 +71,8 @@ s = json.load(open(opt.net_struct, "rb"))
 G = GAN2D.ConvNet(s["G"], [opt.g1, opt.g2]).eval()
 
 train_loader = DataLoader(
-    dataloaders.PairedNeurons(opt.dataset_loc, opt.csv_loc, crop_size=opt.crop_size, is_train=True),
+    dataloaders.PairedNeurons(opt.dataset_loc, opt.csv_loc, crop_x=opt.crop_x, crop_y=opt.crop_y,
+                              norm_min=opt.norm_min, norm_max=opt.norm_max, is_train=True),
     num_workers=opt.num_workers,  # Use this to replace data_prefetcher
     batch_size=opt.batch_size,
     shuffle=False,
