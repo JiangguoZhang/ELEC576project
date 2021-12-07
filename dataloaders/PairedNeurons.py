@@ -7,14 +7,19 @@ from PIL import ImageOps, Image
 from torchvision import datasets, transforms
 import cv2
 import math
+from skimage.segmentation import clear_border
 import matplotlib.pyplot as plt
 
 class PairedNeurons(datasets.ImageFolder):
-    def __init__(self, root, rle_dir, crop_x=256, crop_y=256, is_train=True):
+    def __init__(self, root, rle_dir, crop_x=256, crop_y=256, norm_min=-1, norm_max=1, is_train=True,
+                 is_supervised=True):
         self.masks = pd.read_csv(rle_dir)
         self.crop_x = crop_x
         self.crop_y = crop_y
+        self.norm_min = norm_min
+        self.norm_max = norm_max
         self.is_train = is_train
+        self.is_supervised = is_supervised
         super().__init__(root)
 
     @staticmethod
@@ -100,7 +105,6 @@ class PairedNeurons(datasets.ImageFolder):
 
         return [result[x_coord:x_coord+self.crop_x, y_coord:y_coord+self.crop_y] for result in results]
 
-
     @staticmethod
     def is_point_in_rect(coord_list, points):
         """
@@ -140,18 +144,16 @@ class PairedNeurons(datasets.ImageFolder):
             bb_h - 2 * y
         )
 
-
-
     @staticmethod
     def crop_around_center(image, width, height):
 
         image_size = (image.shape[1], image.shape[0])
         image_center = (int(image_size[0] * 0.5), int(image_size[1] * 0.5))
 
-        if (width > image_size[0]):
+        if width > image_size[0]:
             width = image_size[0]
 
-        if (height > image_size[1]):
+        if height > image_size[1]:
             height = image_size[1]
 
         x1 = int(image_center[0] - width * 0.5)
@@ -161,29 +163,49 @@ class PairedNeurons(datasets.ImageFolder):
 
         return image[y1:y2, x1:x2]
 
+    @staticmethod
+    def segmentation(image):
+        """
+        Using Otsu's threshold to segment image
+        :param image: image for segmentation
+        :return: Normalized segmented image
+        """
+        ret, th1 = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        kernel = np.ones((3, 3), np.uint8)
+        opening = cv2.morphologyEx(th1, cv2.MORPH_OPEN, kernel, iterations=1)
+        opening = clear_border(opening)
+        sure_bg = cv2.dilate(opening, kernel, iterations=4)
+        return sure_bg
+
+
     def __getitem__(self, index):
         img0, target = super().__getitem__(index)
         target = self.classes[index]
         labels = self.masks[self.masks["id"] == target]["annotation"].tolist()
         img0 = ImageOps.grayscale(img0)
+        img0 = np.array(img0, dtype=np.uint8)
+        img_shape = img0.shape
+        if self.is_supervised:
+            img1 = np.zeros(img_shape, dtype=bool)
+            for label in labels:
+                img1 = np.bitwise_or(img1, self.rle_decode(label, img_shape))
+            img1 = np.uint8(img1 * 255)
+        else:
+            img1 = self.segmentation(img0)
 
-        img_shape = [img0.size[-1], img0.size[-2]]
-        img1 = np.zeros(img_shape, dtype=bool)
-        for label in labels:
-            img1 = np.bitwise_or(img1, self.rle_decode(label, img_shape))
 
+        # img0 np [0,255], img1 np [0, 255]
         if self.is_train:
             # Process images in numpy format
-            img0 = np.array(img0, dtype=np.float32) / 255 * 2 - 1
-            img1 = np.array(img1 * 2 - 1, dtype=np.float32)
-            img0, img1 = self.rotate_images([img0, img1], angle=np.random.random(1)*180 - 90)
+            img0, img1 = self.rotate_images([img0, img1], angle=np.random.random(1)*360 - 180)
             is_flip = random.random() < 0.5  # flip
             if is_flip:
                 img0 = np.fliplr(img0)
                 img1 = np.fliplr(img1)
         else:
             # Process images in PIL format
-            img1 = Image.fromarray(np.uint8(img1 * 255))
+            img0 = Image.fromarray(img0)
+            img1 = Image.fromarray(img1)
             if self.crop_x > img_shape[0]:
                 pad_x = (self.crop_x - img_shape[0]) // 2
             else:
@@ -195,11 +217,14 @@ class PairedNeurons(datasets.ImageFolder):
             padding = transforms.Pad(padding=(pad_y, pad_x), padding_mode='reflect')
             img0 = padding(img0)
             img1 = padding(img1)
-            img0 = np.array(img0) / 255 * 2 - 1
-            img1 = np.array(img1) / 255 * 2 - 1
+            img0 = np.array(img0)
+            img1 = np.array(img1)
 
-        #img0 = torch.from_numpy(img0[np.newaxis, :, :].copy())
-        #img1 = torch.from_numpy(img1[np.newaxis, :, :].copy())
+        img0 = img0 / 255 * (self.norm_max - self.norm_min) + self.norm_min
+        img1 = img1 / 255 * (self.norm_max - self.norm_min) + self.norm_min
+
+        img0 = torch.from_numpy(img0[np.newaxis, :, :].copy())
+        img1 = torch.from_numpy(img1[np.newaxis, :, :].copy())
 
         if self.transform is not None:
             img0 = self.transform(img0)

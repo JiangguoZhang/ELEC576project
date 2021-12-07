@@ -9,4 +9,4 @@ def imgnet_move(img_dir):
             shutil.move(os.path.join(img_dir, img_name), os.path.join(new_dir, img_name))
 
 
-imgnet_move("/Users/mac/Desktop/Rice-COMP576/sartorius-cell-instance-segmentation/train")
+imgnet_move("/mnt/data/elec576/project/kaggle_cell_segmentation/sartorius-cell-instance-segmentation/test")

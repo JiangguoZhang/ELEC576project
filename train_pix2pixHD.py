@@ -74,7 +74,8 @@ json.dump(s, open(os.path.join(opt.logdir, "model.json"), "w"))
 
 
 train_loader = DataLoader(
-    dataloaders.PairedNeurons(opt.dataset_loc, opt.csv_loc, crop_x=opt.crop_x, crop_y=opt.crop_y, is_train=True),
+    dataloaders.PairedNeurons(opt.dataset_loc, opt.csv_loc, crop_x=opt.crop_x, crop_y=opt.crop_y,
+                              norm_min=opt.norm_min, norm_max=opt.norm_max, is_train=True),
     num_workers=opt.num_workers,  # Use this to replace data_prefetcher
     batch_size=opt.batch_size,
     shuffle=True,
