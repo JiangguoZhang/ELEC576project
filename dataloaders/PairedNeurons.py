@@ -170,6 +170,7 @@ class PairedNeurons(datasets.ImageFolder):
         :param image: image for segmentation
         :return: Normalized segmented image
         """
+        image = np.uint8((image / 255 * 2 - 1) * 255)
         ret, th1 = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         kernel = np.ones((3, 3), np.uint8)
         opening = cv2.morphologyEx(th1, cv2.MORPH_OPEN, kernel, iterations=1)
@@ -177,13 +178,12 @@ class PairedNeurons(datasets.ImageFolder):
         sure_bg = cv2.dilate(opening, kernel, iterations=4)
         return sure_bg
 
-
     def __getitem__(self, index):
         img0, target = super().__getitem__(index)
         target = self.classes[index]
         labels = self.masks[self.masks["id"] == target]["annotation"].tolist()
         img0 = ImageOps.grayscale(img0)
-        img0 = np.array(img0, dtype=np.uint8)
+        img0 = np.array(img0)
         img_shape = img0.shape
         if self.is_supervised:
             img1 = np.zeros(img_shape, dtype=bool)
@@ -223,8 +223,8 @@ class PairedNeurons(datasets.ImageFolder):
         img0 = img0 / 255 * (self.norm_max - self.norm_min) + self.norm_min
         img1 = img1 / 255 * (self.norm_max - self.norm_min) + self.norm_min
 
-        img0 = torch.from_numpy(img0[np.newaxis, :, :].copy())
-        img1 = torch.from_numpy(img1[np.newaxis, :, :].copy())
+        #img0 = torch.from_numpy(img0[np.newaxis, :, :].copy())
+        #img1 = torch.from_numpy(img1[np.newaxis, :, :].copy())
 
         if self.transform is not None:
             img0 = self.transform(img0)
