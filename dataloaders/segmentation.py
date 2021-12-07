@@ -14,9 +14,9 @@ def iou_numpy(outputs: np.array, labels: np.array):
     
     iou = (intersection + SMOOTH) / (union + SMOOTH)
     
-    thresholded = np.ceil(np.clip(20 * (iou - 0.5), 0, 10)) / 10
+    # thresholded = np.ceil(np.clip(20 * (iou - 0.5), 0, 10)) / 10
     
-    return thresholded.mean()  # Or thresholded.mean()
+    return iou  # Or thresholded.mean()
 
 img_dir = "/Users/mac/Desktop/Rice-COMP576/sartorius-cell-instance-segmentation/train"
 csv_dir = "/Users/mac/Desktop/Rice-COMP576/sartorius-cell-instance-segmentation/train.csv"
