@@ -1,8 +1,8 @@
 from PairedNeurons import PairedNeurons
 from matplotlib import pyplot as plt
 import os
-img_dir = "/mnt/data/elec576/project/kaggle_cell_segmentation/sartorius-cell-instance-segmentation/train"
-csv_dir = "/mnt/data/elec576/project/kaggle_cell_segmentation/sartorius-cell-instance-segmentation/train.csv"
+img_dir = "/Users/mac/Desktop/Rice-COMP576/sartorius-cell-instance-segmentation/train"
+csv_dir = "/Users/mac/Desktop/Rice-COMP576/sartorius-cell-instance-segmentation/train.csv"
 
 pn = PairedNeurons(img_dir, csv_dir, crop_x=520, crop_y=704, is_train=False, is_supervised=False)
 for i in range(len(pn)):
@@ -18,5 +18,5 @@ for i in range(len(pn)):
     # fig.colorbar(im)
     fig.tight_layout()
     #plt.show()
-    plt.savefig(os.path.join("/mnt/data/elec576/project/dataloaders/save/train", l))
+    plt.savefig(os.path.join("./save", l))
     plt.close()

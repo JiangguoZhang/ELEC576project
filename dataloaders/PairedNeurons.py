@@ -183,7 +183,7 @@ class PairedNeurons(datasets.ImageFolder):
         target = self.classes[index]
         labels = self.masks[self.masks["id"] == target]["annotation"].tolist()
         img0 = ImageOps.grayscale(img0)
-        img0 = np.array(img0)
+        img0 = np.array(img0, dtype=np.float32)
         img_shape = img0.shape
         if self.is_supervised:
             img1 = np.zeros(img_shape, dtype=bool)
