@@ -135,3 +135,5 @@ sartorius-cell-instance-segmentation/
 /imgs/
 /kaggle_cell_segmentation/
 .idea
+../.DS_Store
+.png
