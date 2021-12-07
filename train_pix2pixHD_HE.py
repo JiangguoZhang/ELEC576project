@@ -32,7 +32,7 @@ parser.add_argument('--load',
                     help='''Load pre-trained networks''')
 parser.add_argument('--net-struct', default='./structure/pix2pixHD.json',
                     help='The net structure.')
-root_dir = "/mnt/data/elec576/project/1207-semi1/"
+root_dir = "/mnt/data/elec576/project/1120/"
 parser.add_argument('--checkpoint-dir', default=root_dir + "ckpts",
                     help='''The models are saved in this dir.''')
 parser.add_argument('--logdir', default=root_dir + "log", help='Tensorboard log dir')
@@ -55,8 +55,6 @@ parser.add_argument('--crop-x', type=int, default=256, help='The height of input
 parser.add_argument('--crop-y', type=int, default=256, help='The width of input image.')
 parser.add_argument('--pretrain-epoch', type=int, default=100,
                     help="The epochs that the model is pretrained with G1 output and G2 output.")
-parser.add_argument('--unsupervised-epoch', type=int, default=200,
-                    help="The epochs that the model is pretrained with unsupervised dataset.")
 parser.add_argument('--g1', default="g1_out", help='The name of the final layer in generator 1.')
 parser.add_argument('--g2', default="g2_out", help='The name of the final layer in generator 2.')
 parser.add_argument('--d-layer', default="feat", help='The name of the final layer in discriminator.')
@@ -78,10 +76,10 @@ D = MultiLayerDiscriminator(s["D"], opt.d_layer, levels=opt.n_layers, para=opt.m
 json.dump(s, open(os.path.join(opt.logdir, "model.json"), "w"))
 
 
-supervised_dataset = dataloaders.PairedNeurons(opt.dataset_loc, opt.csv_loc, crop_x=opt.crop_x, crop_y=opt.crop_y,
+supervised_dataset = dataloaders.TripleNeurons(opt.dataset_loc, opt.csv_loc, crop_x=opt.crop_x, crop_y=opt.crop_y,
                               norm_min=opt.norm_min, norm_max=opt.norm_max, is_train=True, is_supervised=True)
-unsupervised_dataset = dataloaders.PairedNeurons(opt.unsupervised_dataset_loc, opt.csv_loc, crop_x=opt.crop_x, crop_y=opt.crop_y,
-                              norm_min=opt.norm_min, norm_max=opt.norm_max, is_train=True, is_supervised=False)
+unsupervised_dataset = dataloaders.TripleNeurons(opt.dataset_loc, opt.csv_loc, crop_x=opt.crop_x, crop_y=opt.crop_y,
+                              norm_min=opt.norm_min, norm_max=opt.norm_max, is_train=True, is_supervised=True)
 train_loader_sup = DataLoader(
     supervised_dataset,
     num_workers=opt.num_workers,  # Use this to replace data_prefetcher
@@ -103,10 +101,10 @@ if opt.no_cuda:
     D = D.cuda()
 
 # Create model structure in tensorboard
-pix2pixHD_G(G_tmp, os.path.join(opt.logdir, 'G'), opt.comment, [opt.batch_size, 1, opt.crop_x, opt.crop_y],
+pix2pixHD_G(G_tmp, os.path.join(opt.logdir, 'G'), opt.comment, [opt.batch_size, 1, opt.crop_size, opt.crop_size],
             use_cuda=opt.no_cuda)
 del G_tmp
-pix2pixHD_D(D, os.path.join(opt.logdir, 'D'), opt.comment, [opt.batch_size, 1, opt.crop_x, opt.crop_y],
+pix2pixHD_D(D, os.path.join(opt.logdir, 'D'), opt.comment, [opt.batch_size, 1, opt.crop_size, opt.crop_size],
             use_cuda=opt.no_cuda)
 
 # The DataParallel should be applied after tensorboard creation
@@ -137,14 +135,14 @@ ds = Downscale(3, 2, 1, False)  # Downscale by 2 on each edge
 D.set_hook()
 
 
-def train(epoch, dataloader=train_loader_sup, alpha=None):
+def train(epoch, alpha=None):
     if alpha is None:
         alpha = [1., 1.]
-    for batch_idx in range(len(dataloader)):
+    for batch_idx in range(len(train_loader_sup)):
         # Initialize all values
         batch.batch()
         # Prepare batch
-        img0, img1, target = next(dataloader.__iter__())
+        img0, img1, target = next(train_loader_sup.__iter__())
         if opt.no_cuda:
             img0, img1 = img0.cuda(), img1.cuda()
         img0, img1 = Variable(img0, requires_grad=True), Variable(img1, requires_grad=True)
@@ -194,11 +192,13 @@ def train(epoch, dataloader=train_loader_sup, alpha=None):
               (
                   epoch,
                   batch_idx * len(img0),
-                  len(dataloader.dataset),
+                  len(train_loader_sup.dataset),
               ),
               end='')
         batch.report('loss/*')
-
+        """
+        TODO: Change
+        """
     batch.write(log, epoch)
     print('', flush=True)
     return 0
@@ -247,10 +247,7 @@ for epoch in range(last_epoch, last_epoch + opt.epochs):
         alpha = [1., 1. - epoch / opt.pretrain_epoch]
     else:
         alpha = [1., 0.]
-    if epoch < opt.unsupervised_epoch:
-        train(epoch, dataloader=train_loader_unsup, alpha=alpha)
-    else:
-        train(epoch, dataloader=train_loader_sup, alpha=alpha)
+    train(epoch, alpha=alpha)
     if epoch < 10 or epoch % opt.save_every == 0:
         test(epoch)
 

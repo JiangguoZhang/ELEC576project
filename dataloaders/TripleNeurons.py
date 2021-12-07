@@ -10,7 +10,7 @@ import math
 from skimage.segmentation import clear_border
 import matplotlib.pyplot as plt
 
-class PairedNeurons(datasets.ImageFolder):
+class TripleNeurons(datasets.ImageFolder):
     def __init__(self, root, rle_dir, crop_x=256, crop_y=256, norm_min=-1, norm_max=1, is_train=True,
                  is_supervised=True):
         self.masks = pd.read_csv(rle_dir)
@@ -92,12 +92,7 @@ class PairedNeurons(datasets.ImageFolder):
 
         whole_size = results[0].shape   # The new image size
 
-        iterations = 0
         while True:
-            if iterations > 100:
-                x_coord = (whole_size[0] - self.crop_x) // 2
-                y_coord = (whole_size[1] - self.crop_y) // 2
-                break
             x_coord = np.random.randint(whole_size[0] - self.crop_x)
             y_coord = np.random.randint(whole_size[1] - self.crop_y)
             points = np.array([[x_coord, y_coord],
@@ -107,7 +102,6 @@ class PairedNeurons(datasets.ImageFolder):
             are_points_in_rect = self.is_point_in_rect(coords_list, points)
             if are_points_in_rect:
                 break
-            iterations += 1
 
         y_coord = whole_size[1] - y_coord - self.crop_y  # The y axis is flipped
 
@@ -205,21 +199,25 @@ class PairedNeurons(datasets.ImageFolder):
             for label in labels:
                 img1 = np.bitwise_or(img1, self.rle_decode(label, img_shape))
             img1 = np.uint8(img1 * 255)
+            img2 = self.segmentation(img0)
         else:
             img1 = self.segmentation(img0)
+            img2 = img1
 
         # img0 np [0,255], img1 np [0, 255]
         if self.is_train:
             # Process images in numpy format
-            img0, img1 = self.rotate_images([img0, img1], angle=np.random.randint(360) - 180)
+            img0, img1, img2 = self.rotate_images([img0, img1, img2], angle=np.random.randint(360) - 180)
             is_flip = random.random() < 0.5  # flip
             if is_flip:
                 img0 = np.fliplr(img0)
                 img1 = np.fliplr(img1)
+                img2 = np.fliplr(img2)
         else:
             # Process images in PIL format
             img0 = Image.fromarray(img0)
             img1 = Image.fromarray(img1)
+            img2 = Image.fromarray(img2)
             if self.crop_x > img_shape[0]:
                 pad_x = (self.crop_x - img_shape[0]) // 2
             else:
@@ -231,20 +229,25 @@ class PairedNeurons(datasets.ImageFolder):
             padding = transforms.Pad(padding=(pad_y, pad_x), padding_mode='reflect')
             img0 = padding(img0)
             img1 = padding(img1)
+            img2 = padding(img2)
             img0 = np.array(img0)
             img1 = np.array(img1)
+            img2 = np.array(img2)
 
         img0 = img0 / 255 * (self.norm_max - self.norm_min) + self.norm_min
         img1 = img1 / 255 * (self.norm_max - self.norm_min) + self.norm_min
+        img2 = img2 / 255 * (self.norm_max - self.norm_min) + self.norm_min
 
         img0 = torch.FloatTensor(img0[np.newaxis, :, :].copy())
         img1 = torch.FloatTensor(img1[np.newaxis, :, :].copy())
+        img2 = torch.FloatTensor(img2[np.newaxis, :, :].copy())
 
         if self.transform is not None:
             img0 = self.transform(img0)
             img1 = self.transform(img1)
+            img2 = self.transform(img2)
 
         if self.target_transform is not None:
             target = self.target_transform(target)
 
-        return img0, img1, target
+        return img0, img1, img2, target

@@ -35,7 +35,7 @@ parser.add_argument('--csv-loc',
 common_dir = "IMGS"
 scratch_dir = "1120"
 parser.add_argument('--load',
-                    default='1120/ckpts/CHECKPOINT-960',
+                    default=scratch_dir + '/ckpts/CHECKPOINT-440',
                     help='''Load pre-trained networks''')
 parser.add_argument('--img-loc',
                     default='%s/%s/img' % (scratch_dir, common_dir),
@@ -49,8 +49,8 @@ parser.add_argument('--movie', action='store_true', help='Create movie result.')
 parser.add_argument('--norm-min', type=int, default=-1, help="The normalized minimum")
 parser.add_argument('--norm-max', type=int, default=1, help="The normalized maximum")
 parser.add_argument('--num-workers', type=int, default=3, help="The number of cores to load images.")
-parser.add_argument('--crop-x', type=int, default=256, help='The height of input image.')
-parser.add_argument('--crop-y', type=int, default=256, help='The width of input image.')
+parser.add_argument('--crop-x', type=int, default=720, help='The height of input image.')
+parser.add_argument('--crop-y', type=int, default=720, help='The width of input image.')
 parser.add_argument('--crop-size', type=int, default=512, help='The input size.')
 parser.add_argument('--g1', default="g1_out", help='The name of the final layer in generator 1.')
 parser.add_argument('--g2', default="g2_out", help='The name of the final layer in generator 2.')
@@ -70,9 +70,10 @@ if not os.path.exists(opt.stat_loc):
 s = json.load(open(opt.net_struct, "rb"))
 G = GAN2D.ConvNet(s["G"], [opt.g1, opt.g2]).eval()
 
+dataset = dataloaders.PairedNeurons(opt.dataset_loc, opt.csv_loc, crop_x=opt.crop_x, crop_y=opt.crop_y,
+                              norm_min=opt.norm_min, norm_max=opt.norm_max, is_train=False, is_supervised=True)
 train_loader = DataLoader(
-    dataloaders.PairedNeurons(opt.dataset_loc, opt.csv_loc, crop_x=opt.crop_x, crop_y=opt.crop_y,
-                              norm_min=opt.norm_min, norm_max=opt.norm_max, is_train=True),
+    dataset,
     num_workers=opt.num_workers,  # Use this to replace data_prefetcher
     batch_size=opt.batch_size,
     shuffle=False,
@@ -106,14 +107,7 @@ def get_img_from_fig(fig, dpi=180):
 
 
 def test(norm_rage=None):
-    if not norm_rage:
-        norm_rage = [-1, 1]
-    #MSE_list = []
-    #MSE_he_list = []
-    #ssim_list = []
-    #ssim_he_list = []
     imgList = []
-    method = NormalizeTif(norm_range=[-1, 1], norm_method=1)
     with torch.no_grad():
         for batch_idx, tl in enumerate(train_loader):
             img0, img1, target = tl
@@ -127,34 +121,27 @@ def test(norm_rage=None):
             im1 = img1.cpu().data.numpy()
             im_gen = x_fake.cpu().data.numpy()
             for i in range(np.size(im1, axis=0)):
-                tdt = im1[i, 0, :, :]
-                gen = im_gen[i, 0, :, :]
-                neuron = im0[i, 0, :, :]
-                result = {
-                    "neuron": neuron,
-                    "mask": tdt,
-                    "gen": gen,
-                }
-                #save_dir = os.path.join(opt.stat_loc, target[0][i].split('_')[0])
-                #if not os.path.exists(save_dir):
-                #    os.makedirs(save_dir)
-                #pkl.dump(result, open(os.path.join(save_dir, "pkg_%s.pkl" % target[0][i].split('_')[1]), "wb"))
+                ground_truth = dataset.remove_padding(im1[i, 0, :, :])
+                gen = dataset.remove_padding(im_gen[i, 0, :, :])
+                neuron = dataset.remove_padding(im0[i, 0, :, :])
+                save_dir = os.path.join(opt.stat_loc, target[i])
+                np.save(save_dir, gen)
 
                 if opt.visualize:
                     fig, ax = plt.subplots(1, 3, figsize=[12, 4])
                     ax[0].imshow(neuron, cmap='gray')
                     ax[0].axis('off')
-                    ax[0].set_title("neuron")
+                    ax[0].set_title("Neuron")
                     #ax[0].text(10, 50, "A", fontsize=36, color='white')
 
-                    ax[1].imshow(tdt, cmap='gray')
+                    ax[1].imshow(ground_truth, cmap='gray')
                     ax[1].axis('off')
-                    ax[1].set_title("mask")
+                    ax[1].set_title("Ground Truth")
                     #ax[1].text(10, 50, "B", fontsize=36, color='white')
 
                     ax[2].imshow(gen, cmap='gray')
                     ax[2].axis('off')
-                    ax[2].set_title("synthesized")
+                    ax[2].set_title("Synthesized")
                     #ax[2].text(10, 50, "C", fontsize=36, color='white')
 
                     fig.tight_layout()

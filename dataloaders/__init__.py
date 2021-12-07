@@ -1,2 +1,2 @@
-#from .MyxoLabelLoaderT import MyxoLabelLoaderT
 from .PairedNeurons import PairedNeurons
+from .TripleNeurons import TripleNeurons
