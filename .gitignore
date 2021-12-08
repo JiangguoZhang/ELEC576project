@@ -138,3 +138,10 @@ sartorius-cell-instance-segmentation/
 ../.DS_Store
 .png
 /1207-semi1/
+
+# UNET
+UNET/dataset_dsb2018_256/
+UNET/result/log
+UNET/result/plot
+UNET/saved_model/*.pth
+UNET/saved_predict/*/*
