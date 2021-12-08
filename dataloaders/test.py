@@ -4,7 +4,7 @@ import os
 img_dir = "/mnt/data/elec576/project/kaggle_cell_segmentation/sartorius-cell-instance-segmentation/train"
 csv_dir = "/mnt/data/elec576/project/kaggle_cell_segmentation/sartorius-cell-instance-segmentation/train.csv"
 
-pn = PairedNeurons(img_dir, csv_dir, crop_x=520, crop_y=704, is_train=True, is_supervised=False)
+pn = PairedNeurons(img_dir, csv_dir, crop_x=256, crop_y=256, is_train=True, is_supervised=True)
 for i in range(len(pn)):
     x, y, l = pn.__getitem__(i)
 

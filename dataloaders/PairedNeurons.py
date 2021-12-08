@@ -110,7 +110,7 @@ class PairedNeurons(datasets.ImageFolder):
             iterations += 1
 
         y_coord = whole_size[1] - y_coord - self.crop_y  # The y axis is flipped
-
+        # x_coord = whole_size[0] - x_coord - self.crop_x
         return [result[x_coord:x_coord+self.crop_x, y_coord:y_coord+self.crop_y] for result in results]
 
     @staticmethod
@@ -189,7 +189,7 @@ class PairedNeurons(datasets.ImageFolder):
     def remove_padding(self, image):
         p_img_shape = image.shape
         x_pad = (p_img_shape[0] - self.x_length) // 2
-        y_pad = (p_img_shape[1] - self.x_length) // 2
+        y_pad = (p_img_shape[1] - self.y_length) // 2
         return image[x_pad:x_pad+self.x_length, y_pad:y_pad+self.y_length]
 
     def __getitem__(self, index):

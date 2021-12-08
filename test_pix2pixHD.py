@@ -33,7 +33,7 @@ parser.add_argument('--csv-loc',
                     default="/mnt/data/elec576/project/kaggle_cell_segmentation/sartorius-cell-instance-segmentation/train.csv",
                     help='The csv file of rle masks')
 common_dir = "IMGS"
-scratch_dir = "1120"
+scratch_dir = "1207-semi1"
 parser.add_argument('--load',
                     default=scratch_dir + '/ckpts/CHECKPOINT-440',
                     help='''Load pre-trained networks''')
