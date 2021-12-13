@@ -3,7 +3,7 @@ import math
 import numpy as np
 from matplotlib import pyplot as plt
 from PIL import Image
-import skimage.external.tifffile as tiffreader
+# import skimage.external.tifffile as tiffreader
 
 
 class LinearNorm:
