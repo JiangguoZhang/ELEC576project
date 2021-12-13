@@ -8,12 +8,16 @@ from torchvision import datasets, transforms
 import cv2
 import math
 from skimage.segmentation import clear_border
+from scipy import ndimage
 import matplotlib.pyplot as plt
 
 class PairedNeurons(datasets.ImageFolder):
     def __init__(self, root, rle_dir, crop_x=256, crop_y=256, norm_min=-1, norm_max=1, is_train=True,
                  is_supervised=True):
-        self.masks = pd.read_csv(rle_dir)
+        if is_supervised:
+            self.masks = pd.read_csv(rle_dir)
+        else:
+            self.masks = None
         self.crop_x = crop_x
         self.crop_y = crop_y
         self.norm_min = norm_min
@@ -22,6 +26,7 @@ class PairedNeurons(datasets.ImageFolder):
         self.is_supervised = is_supervised
         self.x_length = 520
         self.y_length = 704
+        self.crop_diag = np.sqrt(np.square(crop_x) + np.square(crop_y))
         super().__init__(root)
 
     @staticmethod
@@ -113,6 +118,25 @@ class PairedNeurons(datasets.ImageFolder):
         # x_coord = whole_size[0] - x_coord - self.crop_x
         return [result[x_coord:x_coord+self.crop_x, y_coord:y_coord+self.crop_y] for result in results]
 
+    def rotate_images2(self, images, angle):
+        # Get the image size
+        image = images[0]
+        image_size = image.shape
+        new_len = np.max([abs(self.crop_diag * np.cos((angle + 45) / 180 * np.pi)),
+                         abs(self.crop_diag * np.sin((angle + 45) / 180 * np.pi))])
+        new_len = int(np.ceil(new_len))
+        x_sample = np.random.randint(new_len//2, image_size[0] - np.ceil(new_len/2))
+        y_sample = np.random.randint(new_len//2, image_size[1] - np.ceil(new_len/2))
+
+        x_min = min([x_sample, 0])
+        y_min = min([y_sample, 0])
+
+        rot_imgs = [ndimage.rotate(img[x_min:x_min+new_len, y_min:y_min+new_len], angle, reshape=True) for img in images]
+        rot_img_shape = rot_imgs[0].shape
+        img_center = [rot_img_shape[0] // 2, rot_img_shape[1] // 2]
+        return [img[img_center[0] - self.crop_x // 2:img_center[0] + self.crop_x // 2,
+                img_center[1] - self.crop_y // 2:img_center[1] + self.crop_y // 2] for img in rot_imgs]
+
     @staticmethod
     def is_point_in_rect(coord_list, points):
         """
@@ -192,6 +216,20 @@ class PairedNeurons(datasets.ImageFolder):
         y_pad = (p_img_shape[1] - self.y_length) // 2
         return image[x_pad:x_pad+self.x_length, y_pad:y_pad+self.y_length]
 
+    @staticmethod
+    def encode_mask_to_rle(mask):
+        """
+        mask: numpy array binary mask
+        1 - mask
+        0 - background
+        Returns encoded run length
+        """
+        pixels = mask.flatten()
+        pixels = np.concatenate([[0], pixels, [0]])
+        runs = np.where(pixels[1:] != pixels[:-1])[0] + 1
+        runs[1::2] -= runs[::2]
+        return ' '.join(str(x) for x in runs)
+
     def __getitem__(self, index):
         img0, target = super().__getitem__(index)
         target = self.classes[index]
@@ -211,7 +249,7 @@ class PairedNeurons(datasets.ImageFolder):
         # img0 np [0,255], img1 np [0, 255]
         if self.is_train:
             # Process images in numpy format
-            img0, img1 = self.rotate_images([img0, img1], angle=np.random.randint(360) - 180)
+            img0, img1 = self.rotate_images2([img0, img1], angle=float(np.random.random(1) * 360 - 180))
             is_flip = random.random() < 0.5  # flip
             if is_flip:
                 img0 = np.fliplr(img0)

@@ -54,4 +54,4 @@ def mean_iou(pred_dir, label_csv, save_dir="/mnt/data/elec576/project/1120/compa
     acc = np.mean(acc_list)
     print(acc)
 
-mean_iou("/mnt/data/elec576/save_method1/test", "/mnt/data/elec576/project/kaggle_cell_segmentation/sartorius-cell-instance-segmentation/train.csv")
+mean_iou("/mnt/data/elec576/project/1207-semi1/IMGS/stat", "/mnt/data/elec576/project/kaggle_cell_segmentation/sartorius-cell-instance-segmentation/train.csv")

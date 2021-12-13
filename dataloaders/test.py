@@ -1,10 +1,18 @@
 from PairedNeurons import PairedNeurons
 from matplotlib import pyplot as plt
+import numpy as np
 import os
+
 img_dir = "/mnt/data/elec576/project/kaggle_cell_segmentation/sartorius-cell-instance-segmentation/train"
 csv_dir = "/mnt/data/elec576/project/kaggle_cell_segmentation/sartorius-cell-instance-segmentation/train.csv"
 
-pn = PairedNeurons(img_dir, csv_dir, crop_x=256, crop_y=256, is_train=True, is_supervised=True)
+pn = PairedNeurons(img_dir, csv_dir, crop_x=256, crop_y=256, norm_min=0, norm_max=1, is_train=True, is_supervised=True)
+
+example = np.array([[1,1,1,1,0],[0,0,1,0,1],[1,0,0,0,1],[1,1,0,0,0]])
+rle_encoded = pn.encode_mask_to_rle(example)
+print(rle_encoded)
+
+"""
 for i in range(len(pn)):
     x, y, l = pn.__getitem__(i)
 
@@ -20,3 +28,4 @@ for i in range(len(pn)):
     #plt.show()
     plt.savefig(os.path.join("/mnt/data/elec576/project/dataloaders/save/train", l))
     plt.close()
+"""

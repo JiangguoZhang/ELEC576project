@@ -28,7 +28,7 @@ parser = init.parser()
 parser.add_argument('--multiGPU', action='store_true',
                     help='''Enable training on multiple GPUs, uses all that are available.''')
 parser.add_argument('--load',
-                    default=None,
+                    default="/mnt/data/elec576/project/1207-semi1/ckpts/CHECKPOINT-440",
                     help='''Load pre-trained networks''')
 parser.add_argument('--net-struct', default='./structure/pix2pixHD.json',
                     help='The net structure.')
