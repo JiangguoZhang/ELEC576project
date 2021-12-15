@@ -31,7 +31,7 @@ This project depends on the following environments and packages:
 # How to Run Our Model
 The only thing you should do is enter the dataset.py and correct the path of the datasets. Then run:
 ```python
-python main.py --action 'train&test' --arch attention-unet --epoch 200 --batch_size 20 --dataset yhead
+python main.py --action 'train&test' --arch attention-unet --epoch 200 --batch_size 20
 ```
 
 After train and test,3 folders will be created,they are "result","saved_model","saved_predict".
