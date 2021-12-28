@@ -145,3 +145,5 @@ UNET/result/log
 UNET/result/plot
 UNET/saved_model/*.pth
 UNET/saved_predict/*/*
+/1213/
+/1214/

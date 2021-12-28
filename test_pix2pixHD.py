@@ -2,19 +2,17 @@ import argparse
 import io
 import json
 import os
-import pickle as pkl
-import pandas as pd
 
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 from matplotlib_scalebar.scalebar import ScaleBar
 from torch.utils.data import DataLoader
 
 import dataloaders
-from dataloaders.utils.general import NormalizeTif
 from nets import GAN2D
 from pytorch_utils import util, batcher
 
