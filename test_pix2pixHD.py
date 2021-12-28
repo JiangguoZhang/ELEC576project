@@ -3,6 +3,7 @@ import io
 import json
 import os
 import pickle as pkl
+import pandas as pd
 
 import cv2
 import matplotlib.pyplot as plt
@@ -27,27 +28,25 @@ parser.add_argument('--net-struct', default='./structure/pix2pixHD.json',
 parser.add_argument('--multiGPU', action='store_true',
                     help='''Enable training on multiple GPUs, uses all that are available.''')
 parser.add_argument('--dataset-loc',
-                    default="/mnt/data/elec576/project/test",
+                    default="/mnt/data/elec576/project/kaggle_cell_segmentation/sartorius-cell-instance-segmentation/test",
                     help='Folder containing training dataset')
-parser.add_argument('--csv-loc',
-                    default="/mnt/data/elec576/project/kaggle_cell_segmentation/sartorius-cell-instance-segmentation/train.csv",
-                    help='The csv file of rle masks')
+
 common_dir = "IMGS"
-scratch_dir = "1207-semi1"
+scratch_dir = "1213"
 parser.add_argument('--load',
                     default=scratch_dir + '/ckpts/CHECKPOINT-400',
                     help='''Load pre-trained networks''')
 parser.add_argument('--img-loc',
-                    default='%s/%s/test_img' % (scratch_dir, common_dir),
+                    default='%s/%s/test/img' % (scratch_dir, common_dir),
                     help='The directory to save output images.')
 parser.add_argument('--stat-loc',
-                    default='%s/%s/test_stat' % (scratch_dir, common_dir),
+                    default='%s/%s/test/stat' % (scratch_dir, common_dir),
                     help='The analysis results are saved in this directory.')
-
 parser.add_argument('--visualize', action='store_true', help='Visualize result.')
 parser.add_argument('--movie', action='store_true', help='Create movie result.')
 parser.add_argument('--norm-min', type=int, default=-1, help="The normalized minimum")
 parser.add_argument('--norm-max', type=int, default=1, help="The normalized maximum")
+parser.add_argument('--threshold', type=float, default=.5, help="The threshold of IoU.")
 parser.add_argument('--num-workers', type=int, default=3, help="The number of cores to load images.")
 parser.add_argument('--crop-x', type=int, default=720, help='The height of input image.')
 parser.add_argument('--crop-y', type=int, default=720, help='The width of input image.')
@@ -57,8 +56,8 @@ parser.add_argument('--g2', default="g2_out", help='The name of the final layer 
 parser.add_argument('--d-layer', default="feat", help='The name of the final layer in discriminator.')
 parser.add_argument('--n-layers', type=int, default=3, help='The levels of discriminator.')
 opt = parser.parse_args()
-#opt.no_cuda = False
-opt.visualize = True
+
+opt.visualize = False
 print(opt)
 if not os.path.exists(opt.img_loc):
     os.makedirs(opt.img_loc)
@@ -69,8 +68,8 @@ if not os.path.exists(opt.stat_loc):
 s = json.load(open(opt.net_struct, "rb"))
 G = GAN2D.ConvNet(s["G"], [opt.g1, opt.g2]).eval()
 
-dataset = dataloaders.PairedNeurons(opt.dataset_loc, opt.csv_loc, crop_x=opt.crop_x, crop_y=opt.crop_y,
-                              norm_min=opt.norm_min, norm_max=opt.norm_max, is_train=False, is_supervised=True)
+dataset = dataloaders.PairedNeurons(opt.dataset_loc, None, crop_x=opt.crop_x, crop_y=opt.crop_y,
+                                    norm_min=opt.norm_min, norm_max=opt.norm_max, is_train=False, is_supervised=False)
 train_loader = DataLoader(
     dataset,
     num_workers=opt.num_workers,  # Use this to replace data_prefetcher
@@ -107,6 +106,8 @@ def get_img_from_fig(fig, dpi=180):
 
 def test(norm_rage=None):
     imgList = []
+    id_list = []
+    rle_list = []
     with torch.no_grad():
         for batch_idx, tl in enumerate(train_loader):
             img0, img1, target = tl
@@ -123,10 +124,11 @@ def test(norm_rage=None):
                 ground_truth = dataset.remove_padding(im1[i, 0, :, :])
                 gen = dataset.remove_padding(im_gen[i, 0, :, :])
                 neuron = dataset.remove_padding(im0[i, 0, :, :])
-                save_dir = os.path.join(opt.stat_loc, target[i])
-                np.save(save_dir, gen)
-
+                id_list.append(target[i])
+                rle_list.append(dataset.rle_encode(gen >= opt.threshold))
                 if opt.visualize:
+                    save_dir = os.path.join(opt.stat_loc, target[i])
+                    np.save(save_dir, gen)
                     fig, ax = plt.subplots(1, 3, figsize=[12, 4])
                     ax[0].imshow(neuron, cmap='gray')
                     ax[0].axis('off')
@@ -154,6 +156,10 @@ def test(norm_rage=None):
                         img = get_img_from_fig(fig)
                         imgList.append(img)
                     plt.close(fig)
+
+    csv_df = pd.DataFrame({"id": id_list, "annotation": rle_list})
+
+    csv_df.to_csv(os.path.join(opt.stat_loc, "submission.csv"), sep=',', encoding='utf-8', index=None)
 
 
     if opt.movie:

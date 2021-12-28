@@ -225,8 +225,9 @@ class PairedNeurons(datasets.ImageFolder):
         Returns encoded run length
         """
         rle = []
-        mask_width = np.shape(mask)[1]
-        for i, pixels in enumerate(mask):
+        mask_height, mask_width = np.shape(mask)
+        for i in range(mask_height):
+            pixels = mask[i, :]
             pixels = np.concatenate([[0], pixels, [0]])
             runs = np.where(pixels[1:] != pixels[:-1])[0] + 1
             runs = runs + i * mask_width
