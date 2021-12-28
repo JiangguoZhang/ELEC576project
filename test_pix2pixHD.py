@@ -27,21 +27,21 @@ parser.add_argument('--net-struct', default='./structure/pix2pixHD.json',
 parser.add_argument('--multiGPU', action='store_true',
                     help='''Enable training on multiple GPUs, uses all that are available.''')
 parser.add_argument('--dataset-loc',
-                    default="/mnt/data/elec576/project/kaggle_cell_segmentation/sartorius-cell-instance-segmentation/train_semi_supervised",
+                    default="/mnt/data/elec576/project/test",
                     help='Folder containing training dataset')
 parser.add_argument('--csv-loc',
                     default="/mnt/data/elec576/project/kaggle_cell_segmentation/sartorius-cell-instance-segmentation/train.csv",
                     help='The csv file of rle masks')
 common_dir = "IMGS"
-scratch_dir = "1120"
+scratch_dir = "1207-semi1"
 parser.add_argument('--load',
                     default=scratch_dir + '/ckpts/CHECKPOINT-400',
                     help='''Load pre-trained networks''')
 parser.add_argument('--img-loc',
-                    default='%s/%s/unsup_img' % (scratch_dir, common_dir),
+                    default='%s/%s/test_img' % (scratch_dir, common_dir),
                     help='The directory to save output images.')
 parser.add_argument('--stat-loc',
-                    default='%s/%s/unsup_stat' % (scratch_dir, common_dir),
+                    default='%s/%s/test_stat' % (scratch_dir, common_dir),
                     help='The analysis results are saved in this directory.')
 
 parser.add_argument('--visualize', action='store_true', help='Visualize result.')
@@ -58,7 +58,7 @@ parser.add_argument('--d-layer', default="feat", help='The name of the final lay
 parser.add_argument('--n-layers', type=int, default=3, help='The levels of discriminator.')
 opt = parser.parse_args()
 #opt.no_cuda = False
-#opt.visualize = True
+opt.visualize = True
 print(opt)
 if not os.path.exists(opt.img_loc):
     os.makedirs(opt.img_loc)
@@ -70,7 +70,7 @@ s = json.load(open(opt.net_struct, "rb"))
 G = GAN2D.ConvNet(s["G"], [opt.g1, opt.g2]).eval()
 
 dataset = dataloaders.PairedNeurons(opt.dataset_loc, opt.csv_loc, crop_x=opt.crop_x, crop_y=opt.crop_y,
-                              norm_min=opt.norm_min, norm_max=opt.norm_max, is_train=False, is_supervised=False)
+                              norm_min=opt.norm_min, norm_max=opt.norm_max, is_train=False, is_supervised=True)
 train_loader = DataLoader(
     dataset,
     num_workers=opt.num_workers,  # Use this to replace data_prefetcher

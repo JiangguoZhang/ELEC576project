@@ -9,7 +9,7 @@ csv_dir = "/mnt/data/elec576/project/kaggle_cell_segmentation/sartorius-cell-ins
 pn = PairedNeurons(img_dir, csv_dir, crop_x=256, crop_y=256, norm_min=0, norm_max=1, is_train=True, is_supervised=True)
 
 example = np.array([[1,1,1,1,0],[0,0,1,0,1],[1,0,0,0,1],[1,1,0,0,0]])
-rle_encoded = pn.encode_mask_to_rle(example)
+rle_encoded = pn.rle_encode(example)
 print(rle_encoded)
 
 """

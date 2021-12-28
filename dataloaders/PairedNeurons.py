@@ -1,5 +1,5 @@
 import random
-
+import os
 import numpy as np
 import pandas as pd
 import torch
@@ -217,29 +217,39 @@ class PairedNeurons(datasets.ImageFolder):
         return image[x_pad:x_pad+self.x_length, y_pad:y_pad+self.y_length]
 
     @staticmethod
-    def encode_mask_to_rle(mask):
+    def rle_encode(mask):
         """
         mask: numpy array binary mask
         1 - mask
         0 - background
         Returns encoded run length
         """
-        pixels = mask.flatten()
-        pixels = np.concatenate([[0], pixels, [0]])
-        runs = np.where(pixels[1:] != pixels[:-1])[0] + 1
-        runs[1::2] -= runs[::2]
-        return ' '.join(str(x) for x in runs)
+        rle = []
+        mask_width = np.shape(mask)[1]
+        for i, pixels in enumerate(mask):
+            pixels = np.concatenate([[0], pixels, [0]])
+            runs = np.where(pixels[1:] != pixels[:-1])[0] + 1
+            runs = runs + i * mask_width
+            runs[1::2] -= runs[::2]
+            rle.append(' '.join(str(x) for x in runs))
+        return ' '.join(rle)
 
     def __getitem__(self, index):
-        img0, target = super().__getitem__(index)
-        target = self.classes[index]
-        labels = self.masks[self.masks["id"] == target]["annotation"].tolist()
+        path, target = self.samples[index]
+        img0 = self.loader(path)
+        if self.transform is not None:
+            img0 = self.transform(img0)
+        if self.target_transform is not None:
+            target = self.target_transform(target)
+        pathname = os.path.basename(path)
+        target_name = pathname.split(".")[0]
         img0 = ImageOps.grayscale(img0)
         img0 = np.array(img0)
         img_shape = img0.shape
         self.x_length, self.y_length = img_shape
         if self.is_supervised:
             img1 = np.zeros(img_shape, dtype=bool)
+            labels = self.masks[self.masks["id"] == target_name]["annotation"].tolist()
             for label in labels:
                 img1 = np.bitwise_or(img1, self.rle_decode(label, img_shape))
             img1 = np.uint8(img1 * 255)
@@ -278,11 +288,4 @@ class PairedNeurons(datasets.ImageFolder):
         img0 = torch.FloatTensor(img0[np.newaxis, :, :].copy())
         img1 = torch.FloatTensor(img1[np.newaxis, :, :].copy())
 
-        if self.transform is not None:
-            img0 = self.transform(img0)
-            img1 = self.transform(img1)
-
-        if self.target_transform is not None:
-            target = self.target_transform(target)
-
-        return img0, img1, target
+        return img0, img1, target_name

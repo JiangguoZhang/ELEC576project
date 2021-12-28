@@ -28,24 +28,30 @@ parser = init.parser()
 parser.add_argument('--multiGPU', action='store_true',
                     help='''Enable training on multiple GPUs, uses all that are available.''')
 parser.add_argument('--load',
-                    default="/mnt/data/elec576/project/1207-semi1/ckpts/CHECKPOINT-440",
+                    default="/mnt/data/elec576/project/1213/ckpts/CHECKPOINT-400",
                     help='''Load pre-trained networks''')
 parser.add_argument('--net-struct', default='./structure/pix2pixHD.json',
                     help='The net structure.')
-root_dir = "/mnt/data/elec576/project/1207-semi1/"
+root_dir = "/mnt/data/elec576/project/1214/"
 parser.add_argument('--checkpoint-dir', default=root_dir + "ckpts",
                     help='''The models are saved in this dir.''')
 parser.add_argument('--logdir', default=root_dir + "log", help='Tensorboard log dir')
 
 # Move the dataset to SSD for faster loading..
 parser.add_argument('--dataset-loc',
-                    default="/mnt/data/elec576/project/kaggle_cell_segmentation/sartorius-cell-instance-segmentation/train",
+                    default="/mnt/data/elec576/project/train",
+                    help='Folder containing training dataset')
+parser.add_argument('--test-dataset-loc',
+                    default="/mnt/data/elec576/project/test",
                     help='Folder containing training dataset')
 parser.add_argument('--unsupervised-dataset-loc',
                     default="/mnt/data/elec576/project/kaggle_cell_segmentation/sartorius-cell-instance-segmentation/train_semi_supervised",
                     help='Folder containing training dataset')
 parser.add_argument('--csv-loc',
                     default="/mnt/data/elec576/project/kaggle_cell_segmentation/sartorius-cell-instance-segmentation/train.csv",
+                    help='The csv file of rle masks')
+parser.add_argument('--unsupervised-csv-loc',
+                    default="/mnt/data/elec576/project/1213/unsup_stat.csv",
                     help='The csv file of rle masks')
 parser.add_argument('--norm-min', type=int, default=-1, help="The normalized minimum")
 parser.add_argument('--norm-max', type=int, default=1, help="The normalized maximum")
@@ -55,7 +61,7 @@ parser.add_argument('--crop-x', type=int, default=256, help='The height of input
 parser.add_argument('--crop-y', type=int, default=256, help='The width of input image.')
 parser.add_argument('--pretrain-epoch', type=int, default=100,
                     help="The epochs that the model is pretrained with G1 output and G2 output.")
-parser.add_argument('--unsupervised-epoch', type=int, default=200,
+parser.add_argument('--unsupervised-epoch', type=int, default=420,
                     help="The epochs that the model is pretrained with unsupervised dataset.")
 parser.add_argument('--g1', default="g1_out", help='The name of the final layer in generator 1.')
 parser.add_argument('--g2', default="g2_out", help='The name of the final layer in generator 2.')
@@ -64,6 +70,7 @@ parser.add_argument('--n-layers', type=int, default=3, help='The levels of discr
 
 opt = parser.parse_args()
 opt.batch_size = 20
+opt.epochs = 801
 print(opt)
 
 if not os.path.exists(opt.checkpoint_dir):
@@ -80,8 +87,10 @@ json.dump(s, open(os.path.join(opt.logdir, "model.json"), "w"))
 
 supervised_dataset = dataloaders.PairedNeurons(opt.dataset_loc, opt.csv_loc, crop_x=opt.crop_x, crop_y=opt.crop_y,
                               norm_min=opt.norm_min, norm_max=opt.norm_max, is_train=True, is_supervised=True)
-unsupervised_dataset = dataloaders.PairedNeurons(opt.unsupervised_dataset_loc, opt.csv_loc, crop_x=opt.crop_x, crop_y=opt.crop_y,
-                              norm_min=opt.norm_min, norm_max=opt.norm_max, is_train=True, is_supervised=False)
+unsupervised_dataset = dataloaders.PairedNeurons(opt.unsupervised_dataset_loc, opt.unsupervised_csv_loc, crop_x=opt.crop_x, crop_y=opt.crop_y,
+                              norm_min=opt.norm_min, norm_max=opt.norm_max, is_train=True, is_supervised=True)
+test_dataset = dataloaders.PairedNeurons(opt.test_dataset_loc, opt.csv_loc, crop_x=opt.crop_x, crop_y=opt.crop_y,
+                              norm_min=opt.norm_min, norm_max=opt.norm_max, is_train=True, is_supervised=True)
 train_loader_sup = DataLoader(
     supervised_dataset,
     num_workers=opt.num_workers,  # Use this to replace data_prefetcher
@@ -91,6 +100,13 @@ train_loader_sup = DataLoader(
 )
 train_loader_unsup = DataLoader(
     unsupervised_dataset,
+    num_workers=opt.num_workers,  # Use this to replace data_prefetcher
+    batch_size=opt.batch_size,
+    shuffle=True,
+    pin_memory=opt.no_cuda
+)
+test_loader = DataLoader(
+    test_dataset,
     num_workers=opt.num_workers,  # Use this to replace data_prefetcher
     batch_size=opt.batch_size,
     shuffle=True,
@@ -204,12 +220,13 @@ def train(epoch, dataloader=train_loader_sup, alpha=None):
     return 0
 
 
-def test(epoch, norm_range=None):
+def test(epoch, dataloader=test_loader, norm_range=None):
     if norm_range is None:
         norm_range = [opt.norm_min, opt.norm_max]
     MSE_list = []
+
     with torch.no_grad():
-        img0, img1, target = next(train_loader_sup.__iter__())
+        img0, img1, target = next(dataloader.__iter__())
         # print("\r Testing %d th batch." % batch_idx, end='')
         batch.batch()
         if opt.no_cuda:
@@ -220,13 +237,13 @@ def test(epoch, norm_range=None):
         for i in range(np.size(im1, axis=0)):
             MSE = np.square(im1[i, 0, :, :] - im2[i, 0, :, :]).mean()
             MSE_list.append(MSE)
-    MSE_mean = np.sum(MSE_list) / len(MSE_list)
+    test_loss = np.sum(MSE_list) / len(MSE_list)
     buf = make_grid(x_fake, padding=3, nrow=math.floor(math.sqrt(opt.batch_size)), normalize=True, range=(norm_range[0], norm_range[1]))
     log.add_image("Generated", buf, epoch)
     batch.write(log, epoch)
-    print('Test %d: MSE %f' % (epoch, MSE_mean), flush=True)
+    print('Test %d: loss %f' % (epoch, test_loss), flush=True)
 
-    return MSE_mean
+    return test_loss
 
 
 # Initialize training from the last record
@@ -252,7 +269,7 @@ for epoch in range(last_epoch, last_epoch + opt.epochs):
     else:
         train(epoch, dataloader=train_loader_sup, alpha=alpha)
     if epoch < 10 or epoch % opt.save_every == 0:
-        test(epoch)
+        test(epoch, dataloader=test_loader)
 
 epoch = last_epoch + opt.epochs
 folder_name = os.path.join(opt.checkpoint_dir, 'CHECKPOINT-%d' % epoch)
@@ -261,4 +278,4 @@ util.save_nets(folder_name,
                    'G': G,
                    'D': D
                })
-test(epoch)
+test(epoch, dataloader=test_loader)
